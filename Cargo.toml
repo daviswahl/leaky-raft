@@ -1,0 +1,13 @@
+[package]
+name = "leaky-raft"
+version = "0.1.0"
+authors = ["Davis Wahl <daviswahl@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+tarpc = { git = "https://github.com/google/tarpc.git", branch = "master", features = ['serde1']}
+tarpc-bincode-transport = { git = "https://github.com/google/tarpc.git", branch = "master" }
+futures-preview = { version = "0.3.0-alpha.12", features = ["compat", "tokio-compat"] }
+tokio = "0.1"
+tokio-executor = "0.1"
+serde = { version = "1.0" }
