@@ -1,27 +1,56 @@
-use futures::{
-    future::{self, Ready},
-    prelude::*,
-};
+use crate::client;
+use crate::rpc;
+use crate::util;
+use crate::Result;
+use futures::compat::*;
+use futures::TryStreamExt;
+use std::time::Duration;
+use std::time::Instant;
+use tokio::sync::mpsc::Receiver;
 
-use tarpc::{
-    client, context,
-    server::{self, Handler},
-};
+pub struct Config {
+    pub election_interval: (usize, usize),
+    pub runloop_interval: Duration,
+}
 
-use crate::rpc::Service;
+pub struct RaftServer {
+    _receiver: Receiver<rpc::RequestCarrier>,
+    _clients: Vec<client::Client>,
+    config: Config,
+    _timeout: Option<Instant>,
+    pub cycles: usize,
+}
 
-// This is the type that implements the generated Service trait. It is the business logic
-// and is used to start the server.
-#[derive(Clone)]
-pub struct HelloServer;
+pub fn new(rx: Receiver<rpc::RequestCarrier>, _clients: Vec<u32>) -> RaftServer {
+    RaftServer {
+        _clients: vec![],
+        config: Config {
+            election_interval: (300, 500),
+            runloop_interval: Duration::from_millis(100),
+        },
+        _timeout: None,
+        _receiver: rx,
+        cycles: 0,
+    }
+}
 
-impl Service for HelloServer {
-    // Each defined rpc generates two items in the trait, a fn that serves the RPC, and
-    // an associated type representing the future output by the fn.
+impl RaftServer {
+    pub async fn update(mut self, _t: Instant) -> Result<Self> {
+        self.cycles += 1;
 
-    type HelloFut = Ready<String>;
+        if self.cycles > 10 {
+            Err(util::RaftError::ServerError("shutdown"))
+        } else {
+            Ok(self)
+        }
+    }
 
-    fn hello(self, _: context::Context, name: String) -> Self::HelloFut {
-        future::ready(format!("Hello, {}!", name))
+    pub async fn start(self) -> Result<RaftServer> {
+        await! {
+            tokio::timer::Interval::new_interval(self.config.runloop_interval)
+            .compat()
+            .map_err(|_| util::RaftError::ServerError("timer error"))
+            .try_fold(self, |acc, t| acc.update(t))
+        }
     }
 }

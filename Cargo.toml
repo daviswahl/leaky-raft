@@ -8,6 +8,11 @@ edition = "2018"
 tarpc = { git = "https://github.com/google/tarpc.git", branch = "master", features = ['serde1']}
 tarpc-bincode-transport = { git = "https://github.com/google/tarpc.git", branch = "master" }
 futures-preview = { version = "0.3.0-alpha.12", features = ["compat", "tokio-compat"] }
-tokio = "0.1"
+futures-util-preview = { version = "0.3.0-alpha.12", features = ["compat", "tokio-compat"] }
+tokio = { version = "0.1", features = ["async-await-preview"] }
 tokio-executor = "0.1"
 serde = { version = "1.0" }
+crossbeam-channel = "0.3"
+failure =  "0.1"
+failure_derive = "0.1"
+pin-utils = "0.1.0-alpha.4"

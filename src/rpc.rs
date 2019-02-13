@@ -1,14 +1,60 @@
-use tarpc::{
-    client, context,
-    server::{self, Handler},
-};
-use std::io;
+use futures::{future, future::Ready};
+use serde::{Deserialize, Serialize};
+use tarpc::context;
+use tokio::sync::mpsc::Sender;
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum Response {
+    AppendEntries(AppendEntriesRep),
+    RequestVote(RequestVoteRep),
+}
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum Request {
+    AppendEntries(AppendEntriesReq),
+    RequestVote(RequestVoteReq),
+}
 
-// This is the service definition. It looks a lot like a trait definition.
-// It defines one RPC, hello, which takes one arg, name, and returns a String.
-tarpc::service! {
-    /// Returns a greeting for name.
-    rpc hello(name: String) -> String;
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AppendEntriesReq {}
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AppendEntriesRep {}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RequestVoteReq {}
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RequestVoteRep {}
+
+pub struct RequestCarrier {
+    _response_sender: Sender<Response>,
+    _request: Request,
+}
+
+pub mod gen {
+    tarpc::service! {
+        rpc append_entries(request: crate::rpc::Request) -> crate::rpc::Response;
+        rpc request_vote(request: crate::rpc::Request) -> crate::rpc::Response;
+    }
+}
+
+#[derive(Clone)]
+pub struct Server {
+    sender: tokio::sync::mpsc::Sender<RequestCarrier>,
+}
+
+pub fn new_server(sender: tokio::sync::mpsc::Sender<RequestCarrier>) -> Server {
+    Server { sender }
+}
+
+impl gen::Service for Server {
+    type AppendEntriesFut = Ready<Response>;
+    type RequestVoteFut = Ready<Response>;
+
+    fn append_entries(self, _ctx: context::Context, _request: Request) -> Self::AppendEntriesFut {
+        future::ready(Response::AppendEntries(AppendEntriesRep {}))
+    }
+
+    fn request_vote(self, _ctx: context::Context, _request: Request) -> Self::RequestVoteFut {
+        future::ready(Response::RequestVote(RequestVoteRep {}))
+    }
 }
