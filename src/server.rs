@@ -4,6 +4,7 @@ use crate::util;
 use crate::Result;
 use futures::compat::*;
 use futures::TryStreamExt;
+use log::debug;
 use rand::prelude::*;
 use std::time::Duration;
 use std::time::Instant;
@@ -64,7 +65,7 @@ impl RaftServer {
         await!(self.process_messages())?;
 
         if self.timed_out(t) {
-            println!("timed out");
+            debug!("timed out");
         }
 
         Ok(self)

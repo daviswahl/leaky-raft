@@ -7,6 +7,8 @@
 )]
 use futures::{compat::TokioDefaultSpawner, prelude::*};
 
+use env_logger;
+use log::{error, info};
 use tarpc::server::Handler;
 use tarpc_bincode_transport as bincode_transport;
 
@@ -21,7 +23,7 @@ static ADDR: &'static str = "0.0.0.0";
 
 async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
     let port = mk_addr_string(port);
-    println!("Spawning server at: {}", port);
+    info!("Spawning server at: {}", port);
     let transport = bincode_transport::listen(&port.parse()?)?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1_000);
@@ -37,8 +39,8 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
     let server = server::new(rx, clients)
         .start()
         .map(|complete| match complete {
-            Ok(state) => eprintln!("stream exhausted: {}", state.cycles),
-            Err(e) => eprintln!("{}", e),
+            Ok(state) => info!("stream exhausted: {}", state.cycles),
+            Err(e) => error!("{}", e),
         });
 
     spawn_compat(server);
@@ -58,11 +60,7 @@ async fn run() -> Result<()> {
 }
 
 fn main() {
+    env_logger::init();
     tarpc::init(TokioDefaultSpawner);
-    tokio::run(
-        run()
-            .map_err(|e| eprintln!("Oh no: {}", e))
-            .boxed()
-            .compat(),
-    );
+    tokio::run(run().map_err(|e| error!("Oh no: {}", e)).boxed().compat());
 }
