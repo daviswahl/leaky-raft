@@ -1,3 +1,5 @@
+// Basically everything ./main.rs is temporary.
+
 #![feature(
     futures_api,
     arbitrary_self_types,
@@ -53,7 +55,7 @@ fn mk_addr_string(port: u32) -> String {
 }
 
 async fn run() -> Result<()> {
-    collect!(
+    collect_await!(
         spawn_server(12000, vec![12001, 12002]),
         spawn_server(12001, vec![12000, 12002]),
         spawn_server(12002, vec![12000, 12001]),

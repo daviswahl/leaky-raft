@@ -32,14 +32,19 @@ from_error!(io::Error, RaftError::Io);
 type StaticStr = &'static str;
 from_error!(StaticStr, RaftError::Lazy);
 
+/// Result type used throughout project.
 pub type Result<T> = ::std::result::Result<T, RaftError>;
 
+/// Convenience function for spawning a Future03 on the tokio executor.
 pub fn spawn_compat<F: Future<Output = ()> + Send + 'static>(fut: F) {
     let fut = fut.boxed().unit_error().compat();
     tokio_executor::spawn(fut)
 }
 
-macro_rules! collect {
+/// Collect a vec or comma-separated list of Future<Output=Result<_>> into a Result<Vec<_>>.
+/// If any Future returns an Err, the entire result is Err.
+#[macro_export]
+macro_rules! collect_await {
     ($e:expr) => {
         await!(::futures::future::join_all(
             $e.into_iter().map(FutureExt::boxed)
@@ -50,5 +55,5 @@ macro_rules! collect {
     ($($x:expr),*) => (
         collect!(<[_]>::into_vec(box [$($x),*]))
     );
-    ($($x:expr,)*) => (collect!(vec![$($x),*]));
+    ($($x:expr,)*) => (collect_await!(vec![$($x),*]));
 }
