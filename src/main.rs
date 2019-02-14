@@ -15,10 +15,12 @@ mod rpc;
 mod server;
 mod util;
 
-pub use util::{spawn_compat, Result};
+pub use util::{spawn_compat, RaftError, Result};
+
+static ADDR: &'static str = "0.0.0.0";
 
 async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
-    let port = format!("0.0.0.0:{}", port);
+    let port = mk_addr_string(port);
     println!("Spawning server at: {}", port);
     let transport = bincode_transport::listen(&port.parse()?)?;
 
@@ -29,6 +31,7 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
 
     spawn_compat(server);
 
+    let clients = clients.into_iter().map(mk_addr_string).collect();
     let server = server::new(rx, clients)
         .start()
         .map(|complete| match complete {
@@ -38,6 +41,10 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
 
     spawn_compat(server);
     Ok(())
+}
+
+fn mk_addr_string(port: u32) -> String {
+    format!("{}:{}", ADDR, port)
 }
 
 async fn run() -> Result<()> {

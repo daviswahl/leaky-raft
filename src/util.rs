@@ -11,6 +11,9 @@ pub enum RaftError {
 
     #[fail(display = "{}", _0)]
     AddrParse(#[cause] std::net::AddrParseError),
+
+    #[fail(display = "{}", _0)]
+    Lazy(&'static str),
 }
 
 macro_rules! from_error {
@@ -25,6 +28,9 @@ macro_rules! from_error {
 
 from_error!(std::net::AddrParseError, RaftError::AddrParse);
 from_error!(io::Error, RaftError::Io);
+
+type StaticStr = &'static str;
+from_error!(StaticStr, RaftError::Lazy);
 
 pub type Result<T> = ::std::result::Result<T, RaftError>;
 

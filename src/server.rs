@@ -15,15 +15,16 @@ pub struct Config {
 
 pub struct RaftServer {
     _receiver: Receiver<rpc::RequestCarrier>,
-    _clients: Vec<client::Client>,
+    clients: Vec<client::Client>,
     config: Config,
     _timeout: Option<Instant>,
     pub cycles: usize,
 }
 
-pub fn new(rx: Receiver<rpc::RequestCarrier>, _clients: Vec<u32>) -> RaftServer {
+pub fn new(rx: Receiver<rpc::RequestCarrier>, client_addrs: Vec<String>) -> RaftServer {
+    let clients = client_addrs.into_iter().map(client::new).collect();
     RaftServer {
-        _clients: vec![],
+        clients,
         config: Config {
             election_interval: (300, 500),
             runloop_interval: Duration::from_millis(100),
@@ -34,6 +35,13 @@ pub fn new(rx: Receiver<rpc::RequestCarrier>, _clients: Vec<u32>) -> RaftServer 
     }
 }
 
+// for future reference
+// let futs: Vec<_> = self
+//     .clients
+//     .iter_mut()
+//     .map(|client| client.request_vote().boxed())
+//     .collect();
+// let result = await!(futures::future::join_all(futs));
 impl RaftServer {
     pub async fn update(mut self, _t: Instant) -> Result<Self> {
         self.cycles += 1;
