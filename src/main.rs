@@ -25,6 +25,8 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
     let transport = bincode_transport::listen(&port.parse()?)?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1_000);
+
+    // TODO: Keep handle to service so we can shut it down?
     let server = tarpc::server::new(tarpc::server::Config::default())
         .incoming(transport)
         .respond_with(rpc::gen::serve(rpc::new_server(tx)));
