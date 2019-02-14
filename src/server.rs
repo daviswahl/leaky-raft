@@ -4,10 +4,10 @@ use crate::util;
 use crate::Result;
 use futures::compat::*;
 use futures::TryStreamExt;
+use rand::prelude::*;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::mpsc::Receiver;
-use rand::prelude::*;
 
 pub struct Config {
     pub election_interval: (u64, u64),

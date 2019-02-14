@@ -51,11 +51,19 @@ impl gen::Service for Server {
     type AppendEntriesFut = Ready<AppendEntriesRep>;
     type RequestVoteFut = Ready<RequestVoteRep>;
 
-    fn append_entries(self, _ctx: context::Context, _request: AppendEntriesReq) -> Self::AppendEntriesFut {
+    fn append_entries(
+        self,
+        _ctx: context::Context,
+        _request: AppendEntriesReq,
+    ) -> Self::AppendEntriesFut {
         future::ready(AppendEntriesRep {})
     }
 
-    fn request_vote(self, _ctx: context::Context, _request: RequestVoteReq) -> Self::RequestVoteFut {
+    fn request_vote(
+        self,
+        _ctx: context::Context,
+        _request: RequestVoteReq,
+    ) -> Self::RequestVoteFut {
         future::ready(RequestVoteRep {})
     }
 }
