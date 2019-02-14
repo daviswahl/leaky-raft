@@ -4,7 +4,7 @@ use tarpc_bincode_transport as bincode_transport;
 
 pub struct Client {
     addr: String,
-    connection: Option<crate::rpc::gen::Client>,
+    connection: Option<rpc::gen::Client>,
 }
 
 pub fn new(addr: String) -> Client {

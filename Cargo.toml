@@ -19,3 +19,7 @@ pin-utils = "0.1.0-alpha.4"
 rand = "0.6"
 env_logger = "0.6"
 log = "0.4"
+
+[dependencies.futures_01]
+version = "0.1.25"
+package = "futures"

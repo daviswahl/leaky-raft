@@ -2,13 +2,15 @@ use crate::client;
 use crate::rpc;
 use crate::util;
 use crate::Result;
-use futures::compat::*;
 use futures::TryStreamExt;
-use log::debug;
+use futures::compat::{Future01CompatExt,Stream01CompatExt};
+use log::{debug,info};
 use rand::prelude::*;
 use std::time::Duration;
 use std::time::Instant;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::*;
+use futures_01::stream::Stream;
+use tokio::prelude::Async;
 
 pub struct Config {
     pub election_interval: (u64, u64),
@@ -16,7 +18,7 @@ pub struct Config {
 }
 
 pub struct RaftServer {
-    _receiver: Receiver<rpc::RequestCarrier>,
+    receiver: Receiver<rpc::RequestCarrier>,
     clients: Vec<client::Client>,
     config: Config,
     timeout: Option<Instant>,
@@ -29,10 +31,10 @@ pub fn new(rx: Receiver<rpc::RequestCarrier>, client_addrs: Vec<String>) -> Raft
         clients,
         config: Config {
             election_interval: (300, 500),
-            runloop_interval: Duration::from_millis(100),
+            runloop_interval: Duration::from_millis(10),
         },
         timeout: None,
-        _receiver: rx,
+        receiver: rx,
         cycles: 0,
     }
 }
@@ -57,15 +59,22 @@ impl RaftServer {
         }
     }
 
-    pub async fn process_messages(&mut self) -> Result<()> {
+    async fn process_messages(&mut self) -> Result<()> {
+        debug!("processing messages");
+        while let Ok(Async::Ready(msg)) = self.receiver.poll() {
+           debug!("{:?}", msg);
+        }
+        debug!("no more messages");
         Ok(())
     }
 
-    pub async fn update(mut self, t: Instant) -> Result<Self> {
+    async fn update(mut self, t: Instant) -> Result<Self> {
         await!(self.process_messages())?;
 
         if self.timed_out(t) {
             debug!("timed out");
+        } else {
+            debug!("not timed out");
         }
 
         Ok(self)

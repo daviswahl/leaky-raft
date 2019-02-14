@@ -25,6 +25,7 @@ pub struct RequestVoteReq {}
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RequestVoteRep {}
 
+#[derive(Debug)]
 pub struct RequestCarrier {
     _response_sender: Sender<Response>,
     _request: Request,
