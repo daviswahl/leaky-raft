@@ -17,7 +17,7 @@ use tarpc_bincode_transport as bincode_transport;
 mod client;
 mod rpc;
 mod server;
-#[macro_use]
+mod storage;
 mod util;
 
 pub use util::{spawn_compat, RaftError, Result};
@@ -39,7 +39,7 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
     spawn_compat(server);
 
     let clients = clients.into_iter().map(mk_addr_string).collect();
-    let server = server::new(rx, clients)
+    let server = server::new(rx, clients, ())
         .start()
         .map(|complete| match complete {
             Ok(state) => info!("stream exhausted: {}", state.cycles),

@@ -17,15 +17,37 @@ pub struct Config {
     pub runloop_interval: Duration,
 }
 
-pub struct RaftServer {
+enum Mode {
+    Leader,
+    Follower,
+    Candidate,
+}
+
+struct VolatileState {}
+
+struct PersistedState<S> {
+    storage: S,
+}
+
+struct LeaderState {}
+
+pub struct RaftServer<S> {
     receiver: Receiver<rpc::RequestCarrier>,
     clients: Vec<client::Client>,
     config: Config,
     timeout: Option<Instant>,
     pub cycles: usize,
+    mode: Mode,
+    volatile_state: VolatileState,
+    persisted_state: PersistedState<S>,
+    leader_state: Option<LeaderState>,
 }
 
-pub fn new(rx: Receiver<rpc::RequestCarrier>, client_addrs: Vec<String>) -> RaftServer {
+pub fn new<S>(
+    rx: Receiver<rpc::RequestCarrier>,
+    client_addrs: Vec<String>,
+    storage: S,
+) -> RaftServer<S> {
     let clients = client_addrs.into_iter().map(client::new).collect();
     RaftServer {
         clients,
@@ -36,10 +58,14 @@ pub fn new(rx: Receiver<rpc::RequestCarrier>, client_addrs: Vec<String>) -> Raft
         timeout: None,
         receiver: rx,
         cycles: 0,
+        mode: Mode::Follower,
+        volatile_state: VolatileState {},
+        persisted_state: PersistedState { storage },
+        leader_state: None,
     }
 }
 
-impl RaftServer {
+impl<S> RaftServer<S> {
     /// Check if we've exceeded election timeout, or set timeout if none is set.
     fn timed_out(&mut self, now: Instant) -> bool {
         if let Some(ref timeout) = self.timeout {
@@ -53,8 +79,8 @@ impl RaftServer {
         }
     }
 
-    /// Process messages in channel. RCP requests get queued into this channel from the
-    /// RCP services, who clone the sender end of the channel.
+    /// Process messages in channel. RPC requests get queued into this channel from the
+    /// RPC services, who clone the sender end of the channel.
     async fn process_messages(&mut self) -> Result<()> {
         debug!("processing messages");
         while let Ok(Async::Ready(msg)) = self.receiver.poll() {
@@ -65,7 +91,6 @@ impl RaftServer {
     }
 
     /// Theserver's main entrypoint, called each tick of the runloop.
-    ///
     /// Returning Err<_> will stop the server.
     async fn update(mut self, t: Instant) -> Result<Self> {
         await!(self.process_messages())?;
@@ -81,7 +106,7 @@ impl RaftServer {
 
     /// Start the runloop. It is driven by a tokio::timer::Interval.
     /// Something more sophisticated than an Interval may be needed later.
-    pub async fn start(self) -> Result<RaftServer> {
+    pub async fn start(self) -> Result<RaftServer<S>> {
         await! {
             tokio::timer::Interval::new_interval(self.config.runloop_interval)
             .compat()
