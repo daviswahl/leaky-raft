@@ -31,9 +31,10 @@ pub struct RequestCarrier {
 }
 
 pub mod gen {
+    use super::{AppendEntriesRep, AppendEntriesReq, RequestVoteRep, RequestVoteReq};
     tarpc::service! {
-        rpc append_entries(request: crate::rpc::Request) -> crate::rpc::Response;
-        rpc request_vote(request: crate::rpc::Request) -> crate::rpc::Response;
+        rpc append_entries(request: AppendEntriesReq) -> AppendEntriesRep;
+        rpc request_vote(request: RequestVoteReq) -> RequestVoteRep;
     }
 }
 
@@ -47,14 +48,14 @@ pub fn new_server(sender: tokio::sync::mpsc::Sender<RequestCarrier>) -> Server {
 }
 
 impl gen::Service for Server {
-    type AppendEntriesFut = Ready<Response>;
-    type RequestVoteFut = Ready<Response>;
+    type AppendEntriesFut = Ready<AppendEntriesRep>;
+    type RequestVoteFut = Ready<RequestVoteRep>;
 
-    fn append_entries(self, _ctx: context::Context, _request: Request) -> Self::AppendEntriesFut {
-        future::ready(Response::AppendEntries(AppendEntriesRep {}))
+    fn append_entries(self, _ctx: context::Context, _request: AppendEntriesReq) -> Self::AppendEntriesFut {
+        future::ready(AppendEntriesRep {})
     }
 
-    fn request_vote(self, _ctx: context::Context, _request: Request) -> Self::RequestVoteFut {
-        future::ready(Response::RequestVote(RequestVoteRep {}))
+    fn request_vote(self, _ctx: context::Context, _request: RequestVoteReq) -> Self::RequestVoteFut {
+        future::ready(RequestVoteRep {})
     }
 }
