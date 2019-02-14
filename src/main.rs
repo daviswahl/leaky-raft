@@ -52,10 +52,16 @@ fn mk_addr_string(port: u32) -> String {
 }
 
 async fn run() -> Result<()> {
-    // TODO: Spawn these concurrently
-    await!(spawn_server(12000, vec![12001, 12002]))?;
-    await!(spawn_server(12001, vec![12000, 12002]))?;
-    await!(spawn_server(12002, vec![12000, 12001]))?;
+    let futs = vec![
+        spawn_server(12000, vec![12001, 12002]),
+        spawn_server(12001, vec![12000, 12002]),
+        spawn_server(12002, vec![12000, 12001]),
+    ]
+    .into_iter()
+    .map(FutureExt::boxed);
+    await!(future::join_all(futs))
+        .into_iter()
+        .collect::<Result<_>>()?;
     Ok(())
 }
 

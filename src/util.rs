@@ -38,4 +38,3 @@ pub fn spawn_compat<F: Future<Output = ()> + Send + 'static>(fut: F) {
     let fut = fut.boxed().unit_error().compat();
     tokio_executor::spawn(fut)
 }
-

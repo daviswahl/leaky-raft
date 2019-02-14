@@ -2,15 +2,15 @@ use crate::client;
 use crate::rpc;
 use crate::util;
 use crate::Result;
+use futures::compat::{Future01CompatExt, Stream01CompatExt};
 use futures::TryStreamExt;
-use futures::compat::{Future01CompatExt,Stream01CompatExt};
-use log::{debug,info};
+use futures_01::stream::Stream;
+use log::{debug, info};
 use rand::prelude::*;
 use std::time::Duration;
 use std::time::Instant;
-use tokio::sync::mpsc::*;
-use futures_01::stream::Stream;
 use tokio::prelude::Async;
+use tokio::sync::mpsc::*;
 
 pub struct Config {
     pub election_interval: (u64, u64),
@@ -39,14 +39,8 @@ pub fn new(rx: Receiver<rpc::RequestCarrier>, client_addrs: Vec<String>) -> Raft
     }
 }
 
-// for future reference
-// let futs: Vec<_> = self
-//     .clients
-//     .iter_mut()
-//     .map(|client| client.request_vote().boxed())
-//     .collect();
-// let result = await!(futures::future::join_all(futs));
 impl RaftServer {
+    /// Check if we've exceeded election timeout, or set timeout if none is set.
     fn timed_out(&mut self, now: Instant) -> bool {
         if let Some(ref timeout) = self.timeout {
             timeout <= &now
@@ -59,15 +53,21 @@ impl RaftServer {
         }
     }
 
+    /// Process messages in channel. RCP requests get queued into this channel from the
+    /// RCP services, who clone the sender end of the channel.
     async fn process_messages(&mut self) -> Result<()> {
         debug!("processing messages");
         while let Ok(Async::Ready(msg)) = self.receiver.poll() {
-           debug!("{:?}", msg);
+            debug!("{:?}", msg);
         }
         debug!("no more messages");
         Ok(())
     }
 
+    /// Update is the entrypoint for the servers runloop. It is driven by a tokio::timer::Interval
+    /// loop. Something more sophisticated than an Interval may be needed later.
+    ///
+    /// Returning Err<_> will stop the server.
     async fn update(mut self, t: Instant) -> Result<Self> {
         await!(self.process_messages())?;
 
@@ -80,12 +80,13 @@ impl RaftServer {
         Ok(self)
     }
 
+    /// Start the runloop.
     pub async fn start(self) -> Result<RaftServer> {
         await! {
             tokio::timer::Interval::new_interval(self.config.runloop_interval)
             .compat()
             .map_err(|_| util::RaftError::ServerError("timer error"))
-            .try_fold(self, |acc, t| acc.update(t))
+            .try_fold(self, Self::update)
         }
     }
 }
