@@ -64,8 +64,7 @@ impl RaftServer {
         Ok(())
     }
 
-    /// Update is the entrypoint for the servers runloop. It is driven by a tokio::timer::Interval
-    /// loop. Something more sophisticated than an Interval may be needed later.
+    /// The server's main entrypoint, called each tick of the runloop.
     ///
     /// Returning Err<_> will stop the server.
     async fn update(mut self, t: Instant) -> Result<Self> {
@@ -80,7 +79,8 @@ impl RaftServer {
         Ok(self)
     }
 
-    /// Start the runloop.
+    /// Start the runloop. It is driven by a tokio::timer::Interval.
+    /// Something more sophisticated than an Interval may be needed later.
     pub async fn start(self) -> Result<RaftServer> {
         await! {
             tokio::timer::Interval::new_interval(self.config.runloop_interval)

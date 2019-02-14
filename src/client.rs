@@ -15,6 +15,12 @@ pub fn new(addr: String) -> Client {
 }
 
 impl Client {
+
+    /// If we have an established connection, clone and return it. Otherwise,
+    /// establish the connection, clone and return it,
+    ///
+    /// I'm pretty sure cloning the underlying client is right. Could lock it
+    /// instead but it's already synchronized internally so no point.
     async fn connect(&mut self) -> Result<rpc::gen::Client> {
         match self.connection {
             Some(ref conn) => Ok(conn.clone()),
