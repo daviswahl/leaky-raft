@@ -2,10 +2,10 @@ use crate::client;
 use crate::rpc;
 use crate::util;
 use crate::Result;
-use futures::compat::{Future01CompatExt, Stream01CompatExt};
+use futures::compat::Stream01CompatExt;
 use futures::TryStreamExt;
 use futures_01::stream::Stream;
-use log::{debug, info};
+use log::debug;
 use rand::prelude::*;
 use std::time::Duration;
 use std::time::Instant;
@@ -43,7 +43,7 @@ impl RaftServer {
     /// Check if we've exceeded election timeout, or set timeout if none is set.
     fn timed_out(&mut self, now: Instant) -> bool {
         if let Some(ref timeout) = self.timeout {
-            timeout <= &now
+            *timeout <= now
         } else {
             let mut rng = rand::thread_rng();
             let interval = self.config.election_interval;
@@ -64,7 +64,7 @@ impl RaftServer {
         Ok(())
     }
 
-    /// The server's main entrypoint, called each tick of the runloop.
+    /// Theserver's main entrypoint, called each tick of the runloop.
     ///
     /// Returning Err<_> will stop the server.
     async fn update(mut self, t: Instant) -> Result<Self> {

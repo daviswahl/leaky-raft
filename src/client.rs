@@ -15,7 +15,6 @@ pub fn new(addr: String) -> Client {
 }
 
 impl Client {
-
     /// If we have an established connection, clone and return it. Otherwise,
     /// establish the connection, clone and return it,
     ///

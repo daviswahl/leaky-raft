@@ -15,6 +15,7 @@ use tarpc_bincode_transport as bincode_transport;
 mod client;
 mod rpc;
 mod server;
+#[macro_use]
 mod util;
 
 pub use util::{spawn_compat, RaftError, Result};
@@ -28,7 +29,7 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
 
     let (tx, rx) = tokio::sync::mpsc::channel(1_000);
 
-    // TODO: Keep handle to service so we can shut it down?
+    // TODO: Need to be able to shut this down.
     let server = tarpc::server::new(tarpc::server::Config::default())
         .incoming(transport)
         .respond_with(rpc::gen::serve(rpc::new_server(tx)));
@@ -52,16 +53,12 @@ fn mk_addr_string(port: u32) -> String {
 }
 
 async fn run() -> Result<()> {
-    let futs = vec![
+    collect!(
         spawn_server(12000, vec![12001, 12002]),
         spawn_server(12001, vec![12000, 12002]),
         spawn_server(12002, vec![12000, 12001]),
-    ]
-    .into_iter()
-    .map(FutureExt::boxed);
-    await!(future::join_all(futs))
-        .into_iter()
-        .collect::<Result<_>>()?;
+    )?;
+
     Ok(())
 }
 

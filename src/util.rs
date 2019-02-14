@@ -38,3 +38,17 @@ pub fn spawn_compat<F: Future<Output = ()> + Send + 'static>(fut: F) {
     let fut = fut.boxed().unit_error().compat();
     tokio_executor::spawn(fut)
 }
+
+macro_rules! collect {
+    ($e:expr) => {
+        await!(::futures::future::join_all(
+            $e.into_iter().map(FutureExt::boxed)
+        ))
+        .into_iter()
+        .collect::<Result<Vec<_>>>()
+    };
+    ($($x:expr),*) => (
+        collect!(<[_]>::into_vec(box [$($x),*]))
+    );
+    ($($x:expr,)*) => (collect!(vec![$($x),*]));
+}
