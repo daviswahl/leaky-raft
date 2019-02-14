@@ -25,8 +25,8 @@ enum Mode {
 
 struct VolatileState {}
 
-struct PersistedState<S> {
-    storage: S,
+trait PersistedState {
+    type Storage: crate::storage::Storage;
 }
 
 struct LeaderState {}
@@ -39,7 +39,7 @@ pub struct RaftServer<S> {
     pub cycles: usize,
     mode: Mode,
     volatile_state: VolatileState,
-    persisted_state: PersistedState<S>,
+    persisted_state: S,
     leader_state: Option<LeaderState>,
 }
 
@@ -60,7 +60,7 @@ pub fn new<S>(
         cycles: 0,
         mode: Mode::Follower,
         volatile_state: VolatileState {},
-        persisted_state: PersistedState { storage },
+        persisted_state: storage,
         leader_state: None,
     }
 }

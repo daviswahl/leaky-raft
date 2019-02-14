@@ -1,4 +1,4 @@
-use crate::{rpc, RaftError, Result};
+use crate::{rpc, Error, Result};
 use futures::TryFutureExt;
 use tarpc_bincode_transport as bincode_transport;
 
@@ -41,7 +41,7 @@ impl Client {
         await! {
             conn
                 .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
-                .err_into::<RaftError>()
+                .err_into::<Error>()
         }
     }
 }

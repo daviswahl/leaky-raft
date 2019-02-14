@@ -32,9 +32,6 @@ from_error!(io::Error, RaftError::Io);
 type StaticStr = &'static str;
 from_error!(StaticStr, RaftError::Lazy);
 
-/// Result type used throughout project.
-pub type Result<T> = ::std::result::Result<T, RaftError>;
-
 /// Convenience function for spawning a Future03 on the tokio executor.
 pub fn spawn_compat<F: Future<Output = ()> + Send + 'static>(fut: F) {
     let fut = fut.boxed().unit_error().compat();

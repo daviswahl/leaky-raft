@@ -1,5 +1,3 @@
-// Basically everything ./main.rs is temporary.
-
 #![feature(
     futures_api,
     arbitrary_self_types,
@@ -7,20 +5,20 @@
     async_await,
     proc_macro_hygiene
 )]
+
+#[macro_use]
+extern crate leaky_raft;
+
 use futures::{compat::TokioDefaultSpawner, prelude::*};
+use leaky_raft::util::spawn_compat;
 
 use env_logger;
 use log::{error, info};
 use tarpc::server::Handler;
 use tarpc_bincode_transport as bincode_transport;
 
-mod client;
-mod rpc;
-mod server;
-mod storage;
-mod util;
-
-pub use util::{spawn_compat, RaftError, Result};
+use leaky_raft::{rpc, server, Error, Result};
+// Basically everything ./main.rs is temporary.
 
 static ADDR: &'static str = "0.0.0.0";
 
