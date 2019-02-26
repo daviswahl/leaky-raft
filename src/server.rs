@@ -3,6 +3,7 @@ use crate::rpc;
 use crate::storage::Storage;
 use crate::util;
 use crate::util::spawn_compat;
+use crate::util::RaftError;
 use crate::Result;
 use crate::ServerId;
 use crate::TermId;
@@ -11,6 +12,7 @@ use futures::prelude::*;
 use futures::TryStreamExt;
 use futures_01::stream::Stream;
 use log::debug;
+use log::info;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -20,8 +22,6 @@ use tarpc::server::Handler;
 use tarpc_bincode_transport as bincode_transport;
 use tokio::prelude::Async;
 use tokio::sync::mpsc::*;
-use log::info;
-use crate::util::RaftError;
 
 pub struct Config {
     pub election_interval: (u64, u64),

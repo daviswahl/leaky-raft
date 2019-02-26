@@ -38,12 +38,13 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
     let root = Path::new(TMP).join(root);
 
     let storage = SledStorage::new(root.join("sled"))?;
-    let server = await!(server::new(addr, clients, storage))?
-        .start()
-        .map(|complete| match complete {
-            Ok(state) => info!("stream exhausted: {}", state.cycles),
-            Err(e) => error!("{}", e),
-        });
+    let server =
+        await!(server::new(addr, clients, storage))?
+            .start()
+            .map(|complete| match complete {
+                Ok(state) => info!("stream exhausted: {}", state.cycles),
+                Err(e) => error!("{}", e),
+            });
 
     spawn_compat(server);
     Ok(())
