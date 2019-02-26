@@ -16,13 +16,26 @@ pub mod storage;
 pub mod util;
 
 pub mod futures {
-    pub use futures_01::{Future as OldFuture, IntoFuture as OldIntoFuture, Stream as OldStream};
-    pub use futures_util::{
-        self as util, compat::Future01CompatExt, compat::Stream01CompatExt,
-        FutureExt as StdFutureExt, StreamExt as StdStreamExt, TryFutureExt as StdTryFutureExt,
-        TryStreamExt as StdTryStreamExt,
-    };
-    pub use std::future::Future as StdFuture;
+    pub mod old {
+        pub use futures_01::{
+            Future as OldFuture, IntoFuture as OldIntoFuture, Stream as OldStream,
+        };
+        pub use futures_util::compat::{Future01CompatExt, Stream01CompatExt, TokioDefaultSpawner};
+    }
+
+    pub mod new {
+        pub use futures_util::{
+            self as util, FutureExt as StdFutureExt, StreamExt as StdStreamExt,
+            TryFutureExt as StdTryFutureExt, TryStreamExt as StdTryStreamExt,
+        };
+        pub use std::future::Future as StdFuture;
+    }
+
+    pub use futures_util as util;
+
+    pub mod all {
+        pub use super::{new::*, old::*};
+    }
 }
 
 /// Error type used throughout crate.

@@ -1,4 +1,4 @@
-use crate::futures::*;
+use crate::futures::new::*;
 use failure::Fail;
 use std::io;
 

@@ -1,6 +1,6 @@
 use crate::futures::{
-    util::future::{ready, Ready},
-    *,
+    all::*,
+    new::util::future::{ready, Ready},
 };
 use crate::server::PersistedState;
 use crate::{Result, ServerId, TermId};

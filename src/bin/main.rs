@@ -5,11 +5,11 @@
     async_await,
     proc_macro_hygiene
 )]
+/// Just a temporary executable for testing
 
 #[macro_use]
 extern crate leaky_raft;
 
-use futures::compat::TokioDefaultSpawner;
 use leaky_raft::util::spawn_compat;
 
 use env_logger;
@@ -20,10 +20,9 @@ use tarpc_bincode_transport as bincode_transport;
 
 use leaky_raft::storage::SledStorage;
 use leaky_raft::ServerId;
-use leaky_raft::{rpc, server, Error, Result};
+use leaky_raft::{futures::all::*, server, Result};
 use std::path::Path;
 use std::path::PathBuf;
-// Basically everything ./main.rs is temporary.
 
 static ADDR: &'static str = "0.0.0.0";
 static TMP: &'static str = "/tmp/leaky-raft";

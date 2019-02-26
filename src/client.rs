@@ -1,4 +1,4 @@
-use crate::{futures::*, rpc, Error, Result};
+use crate::{futures::all::*, rpc, Error, Result};
 use tarpc_bincode_transport as bincode_transport;
 
 pub struct Client {

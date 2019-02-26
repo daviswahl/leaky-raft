@@ -1,4 +1,4 @@
-use futures::future::Ready;
+use crate::futures::util::future::{ready, Ready};
 use serde::{Deserialize, Serialize};
 use tarpc::context;
 use tokio::sync::mpsc::Sender;
@@ -57,7 +57,7 @@ impl gen::Service for Server {
         _ctx: context::Context,
         _request: AppendEntriesReq,
     ) -> Self::AppendEntriesFut {
-        futures::future::ready(AppendEntriesRep {})
+        ready(AppendEntriesRep {})
     }
 
     fn request_vote(
@@ -65,6 +65,6 @@ impl gen::Service for Server {
         _ctx: context::Context,
         _request: RequestVoteReq,
     ) -> Self::RequestVoteFut {
-        futures::future::ready(RequestVoteRep {})
+        ready(RequestVoteRep {})
     }
 }

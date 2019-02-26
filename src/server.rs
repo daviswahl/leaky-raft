@@ -1,4 +1,4 @@
-use crate::{client, futures::*, rpc, storage::Storage, util::*, Result, ServerId, TermId};
+use crate::{client, futures::all::*, rpc, storage::Storage, util::*, Result, ServerId, TermId};
 use log::debug;
 use log::info;
 use rand::prelude::*;
