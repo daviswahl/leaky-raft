@@ -1,13 +1,11 @@
+use crate::futures::{
+    util::future::{ready, Ready},
+    *,
+};
 use crate::server::PersistedState;
 use crate::{Result, ServerId, TermId};
 use bincode::deserialize;
 use bincode::serialize;
-use futures::compat::Future01CompatExt;
-use futures::future;
-use futures::future::Ready;
-use futures::Future;
-use futures::FutureExt;
-use futures_01::Future as Future01;
 use serde::Deserialize;
 use serde::Serialize;
 use sled::PinnedValue;
@@ -17,9 +15,9 @@ use tokio::fs;
 
 /// Interface for async storage adapter
 pub trait Storage {
-    type UpdateStateFut: Future<Output = Result<()>>;
-    type ReadStateFut: Future<Output = Result<Option<PersistedState>>>;
-    type AppendLogFut: Future<Output = Result<()>>;
+    type UpdateStateFut: StdFuture<Output = Result<()>>;
+    type ReadStateFut: StdFuture<Output = Result<Option<PersistedState>>>;
+    type AppendLogFut: StdFuture<Output = Result<()>>;
 
     type Entry: Serialize + for<'a> Deserialize<'a>;
 
@@ -47,17 +45,17 @@ impl Storage for SledStorage {
 
     fn update_state(&self, state: PersistedState) -> Self::UpdateStateFut {
         if let Ok(state) = serialize(&state) {
-            future::ready(self.db.set(b"state", state).map(|_| ()).map_err(From::from))
+            ready(self.db.set(b"state", state).map(|_| ()).map_err(From::from))
         } else {
-            future::ready(Err("failed to serialize state".into()))
+            ready(Err("failed to serialize state".into()))
         }
     }
 
     fn read_state(&self) -> Self::ReadStateFut {
         if let Ok(Some(state)) = self.db.get(b"state") {
-            future::ready(deserialize(&*state).map_err(|e| e.into()))
+            ready(deserialize(&*state).map_err(|e| e.into()))
         } else {
-            future::ready(Ok(None))
+            ready(Ok(None))
         }
     }
 

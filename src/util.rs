@@ -1,5 +1,5 @@
+use crate::futures::*;
 use failure::Fail;
-use futures::prelude::*;
 use std::io;
 
 #[derive(Fail, Debug)]
@@ -41,7 +41,7 @@ type StaticStr = &'static str;
 from_error!(StaticStr, RaftError::Lazy);
 
 /// Convenience function for spawning a Future03 on the tokio executor.
-pub fn spawn_compat<F: Future<Output = ()> + Send + 'static>(fut: F) {
+pub fn spawn_compat<F: StdFuture<Output = ()> + Send + 'static>(fut: F) {
     let fut = fut.boxed().unit_error().compat();
     tokio_executor::spawn(fut)
 }
@@ -52,7 +52,7 @@ pub fn spawn_compat<F: Future<Output = ()> + Send + 'static>(fut: F) {
 macro_rules! collect_await {
     ($e:expr) => {
         await!(::futures::future::join_all(
-            $e.into_iter().map(FutureExt::boxed)
+            $e.into_iter().map(::futures_util::FutureExt::boxed)
         ))
         .into_iter()
         .collect::<Result<Vec<_>>>()

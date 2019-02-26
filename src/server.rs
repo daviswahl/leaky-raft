@@ -1,16 +1,4 @@
-use crate::client;
-use crate::rpc;
-use crate::storage::Storage;
-use crate::util;
-use crate::util::spawn_compat;
-use crate::util::RaftError;
-use crate::Result;
-use crate::ServerId;
-use crate::TermId;
-use futures::compat::Stream01CompatExt;
-use futures::prelude::*;
-use futures::TryStreamExt;
-use futures_01::stream::Stream;
+use crate::{client, futures::*, rpc, storage::Storage, util::*, Result, ServerId, TermId};
 use log::debug;
 use log::info;
 use rand::prelude::*;
@@ -154,7 +142,7 @@ impl<S: Storage> RaftServer<S> {
         await! {
             tokio::timer::Interval::new_interval(self.config.runloop_interval)
             .compat()
-            .map_err(|_| util::RaftError::ServerError("timer error"))
+            .map_err(|_| RaftError::ServerError("timer error"))
             .try_fold(self, Self::tick)
         }
     }

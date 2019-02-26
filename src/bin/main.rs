@@ -9,10 +9,11 @@
 #[macro_use]
 extern crate leaky_raft;
 
-use futures::{compat::TokioDefaultSpawner, prelude::*};
+use futures::compat::TokioDefaultSpawner;
 use leaky_raft::util::spawn_compat;
 
 use env_logger;
+use leaky_raft::futures::*;
 use log::{error, info};
 use tarpc::server::Handler;
 use tarpc_bincode_transport as bincode_transport;

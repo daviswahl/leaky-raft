@@ -15,6 +15,16 @@ pub mod server;
 pub mod storage;
 pub mod util;
 
+pub mod futures {
+    pub use futures_01::{Future as OldFuture, IntoFuture as OldIntoFuture, Stream as OldStream};
+    pub use futures_util::{
+        self as util, compat::Future01CompatExt, compat::Stream01CompatExt,
+        FutureExt as StdFutureExt, StreamExt as StdStreamExt, TryFutureExt as StdTryFutureExt,
+        TryStreamExt as StdTryStreamExt,
+    };
+    pub use std::future::Future as StdFuture;
+}
+
 /// Error type used throughout crate.
 pub type Error = util::RaftError;
 
