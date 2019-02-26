@@ -17,27 +17,28 @@ use log::{error, info};
 use tarpc::server::Handler;
 use tarpc_bincode_transport as bincode_transport;
 
+use leaky_raft::storage::SledStorage;
+use leaky_raft::ServerId;
 use leaky_raft::{rpc, server, Error, Result};
+use std::path::Path;
+use std::path::PathBuf;
 // Basically everything ./main.rs is temporary.
 
 static ADDR: &'static str = "0.0.0.0";
+static TMP: &'static str = "/tmp/leaky-raft";
 
 async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
     let port = mk_addr_string(port);
-    info!("Spawning server at: {}", port);
-    let transport = bincode_transport::listen(&port.parse()?)?;
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1_000);
-
-    // TODO: Need to be able to shut this down.
-    let server = tarpc::server::new(tarpc::server::Config::default())
-        .incoming(transport)
-        .respond_with(rpc::gen::serve(rpc::new_server(tx)));
-
-    spawn_compat(server);
+    let addr = port.parse()?;
 
     let clients = clients.into_iter().map(mk_addr_string).collect();
-    let server = server::new(rx, clients, ())
+
+    let root = port.replace(".", "_").replace(":", "_");
+    let root = Path::new(TMP).join(root);
+
+    let storage = SledStorage::new(root.join("sled"))?;
+    let server = await!(server::new(addr, clients, storage))?
         .start()
         .map(|complete| match complete {
             Ok(state) => info!("stream exhausted: {}", state.cycles),
@@ -62,8 +63,12 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<()> {
+    use std::fs;
+    fs::remove_dir_all::<PathBuf>(TMP.into()).unwrap_or(());
+    fs::create_dir::<PathBuf>(TMP.into())?;
     env_logger::init();
     tarpc::init(TokioDefaultSpawner);
     tokio::run(run().map_err(|e| error!("Oh no: {}", e)).boxed().compat());
+    Ok(())
 }

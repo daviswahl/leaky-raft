@@ -14,6 +14,12 @@ pub enum RaftError {
 
     #[fail(display = "{}", _0)]
     Lazy(&'static str),
+
+    #[fail(display = "{}", _0)]
+    SledError(#[cause] sled::Error<()>),
+
+    #[fail(display = "{}", _0)]
+    BincodeError(#[cause] bincode::Error),
 }
 
 macro_rules! from_error {
@@ -28,6 +34,8 @@ macro_rules! from_error {
 
 from_error!(std::net::AddrParseError, RaftError::AddrParse);
 from_error!(io::Error, RaftError::Io);
+from_error!(sled::Error<()>, RaftError::SledError);
+from_error!(bincode::Error, RaftError::BincodeError);
 
 type StaticStr = &'static str;
 from_error!(StaticStr, RaftError::Lazy);

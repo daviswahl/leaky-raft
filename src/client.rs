@@ -41,7 +41,7 @@ impl Client {
         await! {
             conn
                 .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
-                .err_into::<Error>()
+                .err_into()
         }
     }
 }
