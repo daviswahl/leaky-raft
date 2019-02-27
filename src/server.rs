@@ -96,7 +96,6 @@ pub struct RaftServer<S> {
     persisted_state: PersistedState,
     leader_state: Option<LeaderState>,
     storage: S,
-    election_results: Option<tokio::sync::oneshot::Receiver<Vec<bool>>>,
 }
 
 pub async fn new<S: Storage>(
@@ -130,7 +129,6 @@ pub async fn new<S: Storage>(
         persisted_state: persisted_state,
         leader_state: None,
         storage,
-        election_results: None,
     })
 }
 
@@ -189,7 +187,7 @@ impl<S: Storage + Unpin> RaftServer<S> {
     /// Main entrypoint for the runloop.
     /// Returning Err<_> will stop the server.
     async fn tick(mut self, t: Instant) -> Result<RaftServer<S>> {
-        self.check_election_results()?;
+        self.peers.check_election_results()?;
         await!(self.process_messages())?;
 
         if self.timed_out(t) {
@@ -225,24 +223,6 @@ impl<S: Storage + Unpin> RaftServer<S> {
         }
     }
 
-    fn check_election_results(&mut self) -> Result<()> {
-        if let Mode::Candidate = self.mode {
-            if let Some(ref mut rx) = self.election_results {
-                match rx.poll() {
-                    Ok(Async::Ready(v)) => {
-                        info!("got result: {:?}", v);
-                        self.election_results.take();
-                    }
-                    Ok(Async::NotReady) => (),
-                    Err(e) => {
-                        error!("{}, {:?}", self.logline(), e);
-                        self.election_results.take();
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
     async fn update_state(&mut self, state: PersistedState) -> Result<()> {
         await!(self.storage.update_state(state.clone()))?;
         self.persisted_state = state;
@@ -260,9 +240,8 @@ impl<S: Storage + Unpin> RaftServer<S> {
         info!("{} become candidate", self.logline());
 
         self.update_timeout(Instant::now());
-
-        self.election_results
-            .replace(self.peers.request_vote(RequestVoteReq {}));
+        self.peers
+            .request_vote(self.persisted_state.current_term, self.id);
 
         Ok(())
     }

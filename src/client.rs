@@ -1,23 +1,28 @@
+use crate::rpc::RequestVoteFut;
 use crate::rpc::RpcError;
 use crate::rpc::RpcResult;
 use crate::util::spawn_compat;
 use crate::util::RaftError;
+use crate::ServerId;
+use crate::TermId;
 use crate::{
     futures::all::*,
     rpc::{self, RequestVoteRep, RequestVoteReq},
     Result,
 };
 use crossbeam_channel::unbounded;
+use futures::stream::StreamObj;
 use futures_util::stream::FuturesUnordered;
 use log::debug;
 use log::{error, info};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::task::LocalWaker;
 use std::task::Poll;
 use tarpc_bincode_transport as bincode_transport;
 use tokio::prelude::Async;
-use tokio::sync::oneshot::{self, Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
 pub struct Client {
@@ -54,32 +59,61 @@ impl Client {
         }
     }
 
-    fn connection(&mut self) -> Result<rpc::gen::Client> {
+    fn connection(&self) -> Result<rpc::gen::Client> {
         if let Some(ref conn) = self.connection {
             return Ok(conn.clone());
         }
         Err("no connection".into())
     }
-    pub async fn request_vote(mut self) -> RpcResult<rpc::RequestVoteRep> {
+    pub fn request_vote(&self, tx: mpsc::Sender<RequestVoteRep>) -> Result<()> {
         info!("in async fn request vote");
-        let mut conn = await!(self.connect())?;
-        await!(conn
-            .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
-            .err_into::<RpcError>())?
+
+        Ok(())
     }
+}
+
+struct QuorumResult {}
+
+impl OldFuture for QuorumResult {
+    type Item = ();
+    type Error = RaftError;
+
+    fn poll(&mut self) -> Result<Async<Self::Item>> {
+        unimplemented!()
+    }
+}
+enum Quorum {
+    NoSession,
+    InSession {
+        stream: mpsc::Receiver<RequestVoteRep>,
+        results: Vec<RequestVoteRep>,
+    },
 }
 
 pub struct Peers {
     clients: Vec<Client>,
+    quorum: Quorum,
 }
 
 impl Peers {
     pub fn new(clients: Vec<Client>) -> Peers {
-        Peers { clients }
+        Peers {
+            clients,
+            quorum: Quorum::NoSession,
+        }
     }
 
-    pub fn request_vote(&mut self, vote: RequestVoteReq) -> Receiver<Vec<bool>> {
-        let (tx, rx) = oneshot::channel();
+    fn replace_quorum(&mut self, mut q: Quorum) {
+        use std::mem;
+        mem::replace(&mut self.quorum, q);
+    }
+
+    pub fn check_election_results(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn request_vote(&mut self, term: TermId, candidate_id: ServerId) -> Result<()> {
+        let (tx, rx) = mpsc::channel(self.clients.len());
 
         let quorum = self.clients.len() as u64 / 2;
 
@@ -87,27 +121,13 @@ impl Peers {
             .clients
             .clone()
             .into_iter()
-            .map(|c| c.request_vote().boxed().compat());
+            .map(|c| c.request_vote(tx.clone()));
 
-        let stream = tokio::prelude::stream::futures_unordered(futs)
-            .filter_map(
-                |r: RequestVoteRep| {
-                    if r.vote_granted {
-                        Some(true)
-                    } else {
-                        None
-                    }
-                },
-            )
-            .take(quorum)
-            .collect()
-            .map(move |f| {
-                info!("sending election result on channel");
-                tx.send(f)
-            })
-            .map_err(|_| ())
-            .map(|_| ());
-        tokio_executor::spawn(stream);
-        rx
+        let mut q = Quorum::InSession {
+            stream: rx,
+            results: vec![],
+        };
+        self.replace_quorum(q);
+        Ok(())
     }
 }
