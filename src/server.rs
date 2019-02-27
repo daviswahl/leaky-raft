@@ -1,9 +1,26 @@
-use crate::{client, futures::all::*, rpc, storage::Storage, util::*, Result, ServerId, TermId};
-use log::debug;
-use log::info;
+use crate::rpc::Request;
+use crate::rpc::RequestCarrier;
+use crate::rpc::RequestVoteRep;
+use crate::rpc::Response;
+use crate::{
+    client::{self, Peers},
+    collect_await,
+    futures::all::*,
+    rpc,
+    rpc::RequestVoteReq,
+    storage::Storage,
+    util::*,
+    Result, ServerId, TermId,
+};
+use log::{debug, error, info};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt::{self, Display, Formatter};
+use std::future::poll_with_tls_waker;
 use std::net::SocketAddr;
+use std::pin::Pin;
+use std::task::Poll;
 use std::time::Duration;
 use std::time::Instant;
 use tarpc::server::Handler;
@@ -16,33 +33,71 @@ pub struct Config {
     pub runloop_interval: Duration,
 }
 
+#[derive(Copy, Clone)]
 enum Mode {
     Leader,
     Follower,
     Candidate,
 }
 
-struct VolatileState {}
-#[derive(Serialize, Deserialize, Debug)]
+impl Display for Mode {
+    fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), fmt::Error> {
+        let m = match self {
+            Mode::Leader => "Leader",
+            Mode::Follower => "Follower",
+            Mode::Candidate => "Candidate",
+        };
+        write!(f, "Mode({})", m)
+    }
+}
+
+struct VolatileState {
+    commit_index: u64,
+    last_applied: u64,
+}
+
+impl VolatileState {
+    fn new() -> Self {
+        VolatileState {
+            commit_index: 0,
+            last_applied: 0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PersistedState {
     current_term: TermId,
     voted_for: Option<ServerId>,
 }
 
-struct LeaderState {}
+struct LeaderState {
+    next_index: HashMap<ServerId, u64>,
+    match_index: HashMap<ServerId, u64>,
+}
+
+impl LeaderState {
+    fn new() -> LeaderState {
+        LeaderState {
+            next_index: HashMap::new(),
+            match_index: HashMap::new(),
+        }
+    }
+}
 
 pub struct RaftServer<S> {
     id: ServerId,
     receiver: Option<Receiver<rpc::RequestCarrier>>,
-    clients: Vec<client::Client>,
+    peers: Peers,
     config: Config,
     timeout: Option<Instant>,
-    pub cycles: usize,
+    pub cycles: u64,
     mode: Mode,
     volatile_state: VolatileState,
     persisted_state: PersistedState,
     leader_state: Option<LeaderState>,
     storage: S,
+    election_results: Option<tokio::sync::oneshot::Receiver<Vec<bool>>>,
 }
 
 pub async fn new<S: Storage>(
@@ -63,7 +118,7 @@ pub async fn new<S: Storage>(
 
     Ok(RaftServer {
         id,
-        clients,
+        peers: Peers::new(clients),
         config: Config {
             election_interval: (300, 500),
             runloop_interval: Duration::from_millis(10),
@@ -72,14 +127,15 @@ pub async fn new<S: Storage>(
         receiver: None,
         cycles: 0,
         mode: Mode::Follower,
-        volatile_state: VolatileState {},
+        volatile_state: VolatileState::new(),
         persisted_state: persisted_state,
         leader_state: None,
         storage,
+        election_results: None,
     })
 }
 
-impl<S: Storage> RaftServer<S> {
+impl<S: Storage + Unpin> RaftServer<S> {
     /// Check if we've exceeded election timeout, or set timeout if none is set.
     fn timed_out(&mut self, now: Instant) -> bool {
         if let Some(ref timeout) = self.timeout {
@@ -101,24 +157,45 @@ impl<S: Storage> RaftServer<S> {
     /// RPC services, who clone the sender end of the channel.
     async fn process_messages(&mut self) -> Result<()> {
         debug!("processing messages");
+
         let mut rx = self.receiver.take().ok_or_else(|| "receiver went away")?;
-        while let Ok(Async::Ready(msg)) = rx.poll() {
-            debug!("{:?}", msg);
-        }
-        debug!("no more messages");
+
+        let result = await!(self.process_messages_helper(&mut rx));
         self.receiver.replace(rx);
+
+        let count = result?;
+        if count > 0 {
+            self.update_timeout(Instant::now());
+        }
+        debug!("processed: {} messages", count);
         Ok(())
+    }
+
+    async fn process_messages_helper<'a>(
+        &'a mut self,
+        rx: &'a mut Receiver<RequestCarrier>,
+    ) -> Result<u64> {
+        let mut count = 0;
+        while let Ok(Async::Ready(Some(msg))) = rx.poll() {
+            count += 1;
+            await!(self.handle_message(msg))?;
+        }
+        Ok(count)
     }
 
     /// Main entrypoint for the runloop.
     /// Returning Err<_> will stop the server.
-    async fn tick(mut self, t: Instant) -> Result<Self> {
+    async fn tick(mut self, t: Instant) -> Result<RaftServer<S>> {
+        if let Mode::Candidate = self.mode {
+            await!(self.check_election_results())?;
+        }
         await!(self.process_messages())?;
 
         if self.timed_out(t) {
             debug!("timed out");
+            await!(self.become_candidate())?;
         } else {
-            debug!("{:?}", self.persisted_state);
+            debug!("{}", self.logline());
             debug!("not timed out");
         }
 
@@ -145,5 +222,75 @@ impl<S: Storage> RaftServer<S> {
             .map_err(|_| RaftError::ServerError("timer error"))
             .try_fold(self, Self::tick)
         }
+    }
+
+    async fn check_election_results(&mut self) -> Result<()> {
+        if let Some(ref mut rx) = self.election_results {
+            match rx.poll() {
+                Ok(Async::Ready(v)) => info!("got result: {:?}", v),
+                Ok(Async::NotReady) => (),
+                Err(e) => {
+                    error!("{:?}", e);
+                    self.election_results.take();
+                }
+            }
+        } else {
+        }
+        Ok(())
+    }
+    async fn update_state(&mut self, state: PersistedState) -> Result<()> {
+        await!(self.storage.update_state(state.clone()))?;
+        self.persisted_state = state;
+        Ok(())
+    }
+
+    async fn become_candidate(&mut self) -> Result<()> {
+        self.mode = Mode::Candidate;
+        let current_term = TermId(self.persisted_state.current_term.0 + 1);
+        let voted_for = Some(self.id);
+        await!(self.update_state(PersistedState {
+            current_term,
+            voted_for
+        }))?;
+        info!("{} become candidate", self.logline());
+
+        self.update_timeout(Instant::now());
+
+        self.election_results
+            .replace(self.peers.request_vote(RequestVoteReq {}));
+
+        Ok(())
+    }
+
+    fn logline(&self) -> Logline {
+        Logline {
+            id: self.id,
+            mode: self.mode,
+            term: self.persisted_state.current_term,
+        }
+    }
+
+    async fn handle_message(&self, msg: RequestCarrier) -> Result<()> {
+        match msg.body() {
+            Request::RequestVote(ref vote) => {
+                await!(msg.respond(Response::RequestVote(RequestVoteRep {
+                    term: self.persisted_state.current_term,
+                    vote_granted: true,
+                })))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+struct Logline {
+    id: ServerId,
+    mode: Mode,
+    term: TermId,
+}
+
+impl Display for Logline {
+    fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), fmt::Error> {
+        write!(f, "[{}: {} {}]", self.id, self.mode, self.term)
     }
 }

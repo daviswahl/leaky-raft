@@ -23,6 +23,7 @@ tempfile = "3.0"
 bincode = "1.1"
 tokio-serde-bincode = "0.2"
 sled = "0.18.1"
+tokio-async-await = "0.1.4"
 
 [dependencies.futures_01]
 version = "0.1.25"

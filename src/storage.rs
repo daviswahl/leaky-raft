@@ -1,16 +1,15 @@
-use crate::futures::{
-    all::*,
-    new::util::future::{ready, Ready},
+use crate::{
+    futures::{
+        all::*,
+        util::future::{ready, Ready},
+    },
+    server::PersistedState,
+    Result, ServerId, TermId,
 };
-use crate::server::PersistedState;
-use crate::{Result, ServerId, TermId};
-use bincode::deserialize;
-use bincode::serialize;
-use serde::Deserialize;
-use serde::Serialize;
+use bincode::{deserialize, serialize};
+use serde::{Deserialize, Serialize};
 use sled::PinnedValue;
-use std::path::PathBuf;
-use std::{path, path::Path};
+use std::path::Path;
 use tokio::fs;
 
 /// Interface for async storage adapter
@@ -45,7 +44,9 @@ impl Storage for SledStorage {
 
     fn update_state(&self, state: PersistedState) -> Self::UpdateStateFut {
         if let Ok(state) = serialize(&state) {
-            ready(self.db.set(b"state", state).map(|_| ()).map_err(From::from))
+            let result = self.db.set(b"state", state).map(|_| ()).map_err(From::from);
+            self.db.flush();
+            ready(result)
         } else {
             ready(Err("failed to serialize state".into()))
         }
