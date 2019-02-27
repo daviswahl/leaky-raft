@@ -164,9 +164,9 @@ impl<S: Storage + Unpin> RaftServer<S> {
 
         let count = result?;
         if count > 0 {
+            info!("{} processed: {} messages", self.logline(), count);
             self.update_timeout(Instant::now());
         }
-        debug!("processed: {} messages", count);
         Ok(())
     }
 
@@ -175,9 +175,13 @@ impl<S: Storage + Unpin> RaftServer<S> {
         rx: &'a mut Receiver<RequestCarrier>,
     ) -> Result<u64> {
         let mut count = 0;
-        while let Ok(Async::Ready(Some(msg))) = rx.poll() {
-            count += 1;
-            await!(self.handle_message(msg))?;
+        while let Ok(Async::Ready(opt)) = rx.poll() {
+            if let Some(msg) = opt {
+                count += 1;
+                await!(self.handle_message(msg))?;
+            } else {
+                panic!("receiver went away!!!");
+            }
         }
         Ok(count)
     }
@@ -231,7 +235,7 @@ impl<S: Storage + Unpin> RaftServer<S> {
                     }
                     Ok(Async::NotReady) => (),
                     Err(e) => {
-                        error!("{:?}", e);
+                        error!("{}, {:?}", self.logline(), e);
                         self.election_results.take();
                     }
                 }

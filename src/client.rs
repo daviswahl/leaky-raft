@@ -80,6 +80,9 @@ impl Peers {
 
     pub fn request_vote(&mut self, vote: RequestVoteReq) -> Receiver<Vec<bool>> {
         let (tx, rx) = oneshot::channel();
+
+        let quorum = self.clients.len() as u64 / 2;
+
         let futs = self
             .clients
             .clone()
@@ -87,15 +90,16 @@ impl Peers {
             .map(|c| c.request_vote().boxed().compat());
 
         let stream = tokio::prelude::stream::futures_unordered(futs)
-            .filter_map(|r: RequestVoteRep| {
-                info!("filter mapping");
-                if r.vote_granted {
-                    Some(true)
-                } else {
-                    None
-                }
-            })
-            .take(3)
+            .filter_map(
+                |r: RequestVoteRep| {
+                    if r.vote_granted {
+                        Some(true)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .take(quorum)
             .collect()
             .map(move |f| {
                 info!("sending election result on channel");
