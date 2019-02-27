@@ -17,7 +17,6 @@ use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-use std::future::poll_with_tls_waker;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::Poll;
@@ -186,9 +185,7 @@ impl<S: Storage + Unpin> RaftServer<S> {
     /// Main entrypoint for the runloop.
     /// Returning Err<_> will stop the server.
     async fn tick(mut self, t: Instant) -> Result<RaftServer<S>> {
-        if let Mode::Candidate = self.mode {
-            await!(self.check_election_results())?;
-        }
+        self.check_election_results()?;
         await!(self.process_messages())?;
 
         if self.timed_out(t) {
@@ -224,17 +221,21 @@ impl<S: Storage + Unpin> RaftServer<S> {
         }
     }
 
-    async fn check_election_results(&mut self) -> Result<()> {
-        if let Some(ref mut rx) = self.election_results {
-            match rx.poll() {
-                Ok(Async::Ready(v)) => info!("got result: {:?}", v),
-                Ok(Async::NotReady) => (),
-                Err(e) => {
-                    error!("{:?}", e);
-                    self.election_results.take();
+    fn check_election_results(&mut self) -> Result<()> {
+        if let Mode::Candidate = self.mode {
+            if let Some(ref mut rx) = self.election_results {
+                match rx.poll() {
+                    Ok(Async::Ready(v)) => {
+                        info!("got result: {:?}", v);
+                        self.election_results.take();
+                    }
+                    Ok(Async::NotReady) => (),
+                    Err(e) => {
+                        error!("{:?}", e);
+                        self.election_results.take();
+                    }
                 }
             }
-        } else {
         }
         Ok(())
     }
