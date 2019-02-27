@@ -36,8 +36,9 @@ pub mod futures {
 
     pub mod new {
         pub use futures_util::{
-            self as util, FutureExt as StdFutureExt, StreamExt as StdStreamExt,
-            TryFutureExt as StdTryFutureExt, TryStreamExt as StdTryStreamExt,
+            self as util, FutureExt as StdFutureExt, SinkExt as NewSinkExt,
+            StreamExt as StdStreamExt, TryFutureExt as StdTryFutureExt,
+            TryStreamExt as StdTryStreamExt,
         };
         pub use std::future::Future as StdFuture;
     }

@@ -9,12 +9,11 @@ use std::task::LocalWaker;
 use std::task::Poll;
 use tarpc_bincode_transport as bincode_transport;
 use tokio::prelude::task::spawn;
+use tokio::sync::oneshot;
 
-struct Request<'a> {
-    fut: Box<dyn StdFuture<Output = rpc::RpcResult<rpc::Response>> + 'a>,
-}
+struct Request {}
 
-impl<'a> Request<'a> {
+impl Request {
     pub fn new(client: rpc::gen::Client, req: rpc::Request) -> Self {
         match req {
             rpc::Request::RequestVote(req) => Self::request_vote(client, req),
@@ -23,16 +22,11 @@ impl<'a> Request<'a> {
     }
 
     fn request_vote(mut client: rpc::gen::Client, req: RequestVoteReq) -> Self {
-        let fut = Box::new(
-            client
-                .request_vote(tarpc::context::current(), req)
-                .map(|e| e.unwrap()),
-        );
-        Request { fut: fut }
+        Request {}
     }
 }
 
-impl<'a> StdFuture for Request<'a> {
+impl StdFuture for Request {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Self::Output> {
@@ -40,21 +34,21 @@ impl<'a> StdFuture for Request<'a> {
     }
 }
 
-enum RequestState<'a> {
-    Pending(Request<'a>),
+enum RequestState {
+    Pending(Request),
     Done(rpc::Response),
 }
 
-pub struct Requests<'a> {
-    requests: Vec<RequestState<'a>>,
+pub struct Requests {
+    requests: Vec<RequestState>,
 }
 
-pub struct Quorum<'a> {
+pub struct Quorum {
     peers: Vec<Peer>,
-    in_flight: Option<Requests<'a>>,
+    in_flight: Option<Requests>,
 }
 
-impl<'a> Quorum<'a> {
+impl Quorum {
     pub fn new() -> Self {
         Quorum {
             peers: vec![],
@@ -63,6 +57,24 @@ impl<'a> Quorum<'a> {
     }
 
     pub fn request_vote(&mut self, server: ServerId, term: TermId) -> Result<()> {
+        let req = RequestVoteReq {};
+        let (tx, rx) = oneshot::channel();
+        let fut = self.peers.clone().iter().map(|client| {
+            client
+                .connection()
+                .unwrap()
+                .request_vote(tarpc::context::current(), req)
+                .map(|e| e.unwrap())
+        });
+
+        let stream = util::stream::futures_unordered(fut)
+            .fold(vec![], |mut acc, r| {
+                acc.push(r);
+                futures::future::ready(acc)
+            })
+            .map(|vec| tx.send(vec).unwrap());
+
+        spawn_compat(stream);
         Ok(())
     }
 
@@ -71,6 +83,7 @@ impl<'a> Quorum<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct Peer {
     addr: SocketAddr,
     connection: Option<rpc::gen::Client>,
@@ -104,6 +117,12 @@ impl Peer {
         }
     }
 
+    fn mut_connection(&mut self) -> Result<&mut rpc::gen::Client> {
+        if let Some(ref mut conn) = self.connection {
+            return Ok(conn);
+        }
+        Err("no connection".into())
+    }
     fn connection(&self) -> Result<rpc::gen::Client> {
         if let Some(ref conn) = self.connection {
             return Ok(conn.clone());
