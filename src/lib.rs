@@ -12,6 +12,7 @@ use std::fmt::{Display, Error as FmtError, Formatter};
 
 // Just being lazy about exports for now.
 pub mod client;
+pub mod quorum;
 pub mod rpc;
 pub mod server;
 pub mod storage;

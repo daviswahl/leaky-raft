@@ -13,26 +13,26 @@ use std::task::Poll;
 use tarpc::context;
 use tokio::sync::oneshot::{error::RecvError, Receiver, Sender};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Response {
     AppendEntries(AppendEntriesRep),
     RequestVote(RequestVoteRep),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Request {
     AppendEntries(AppendEntriesReq),
     RequestVote(RequestVoteReq),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AppendEntriesReq {}
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AppendEntriesRep {}
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RequestVoteReq {}
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RequestVoteRep {
     pub term: TermId,
     pub vote_granted: bool,
@@ -53,7 +53,7 @@ impl RequestCarrier {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RpcError {}
 pub type RpcResult<T> = std::result::Result<T, RpcError>;
 
@@ -77,11 +77,12 @@ impl From<&'static str> for RpcError {
 
 pub mod gen {
     use super::{
-        AppendEntriesRep, AppendEntriesReq, RecvError, RequestVoteRep, RequestVoteReq, RpcResult,
+        AppendEntriesRep, AppendEntriesReq, RecvError, RequestVoteRep, RequestVoteReq,
+        Response as RpcResponse, RpcResult,
     };
     tarpc::service! {
         rpc append_entries(request: AppendEntriesReq) -> AppendEntriesRep;
-        rpc request_vote(request: RequestVoteReq) -> RpcResult<RequestVoteRep>;
+        rpc request_vote(request: RequestVoteReq) -> RpcResult<RpcResponse>;
     }
 }
 
@@ -99,11 +100,11 @@ pub struct RequestVoteFut {
 }
 
 impl StdFuture for RequestVoteFut {
-    type Output = RpcResult<RequestVoteRep>;
+    type Output = RpcResult<Response>;
 
     fn poll(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Self::Output> {
         self.inner.poll_unpin(lw).map(|p| match p {
-            Ok(Response::RequestVote(rep)) => Ok(rep),
+            Ok(rep) => Ok(rep),
             _ => Err("woops".into()),
         })
     }
