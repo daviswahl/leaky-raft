@@ -142,7 +142,10 @@ mod tests {
     fn test_1() {
         tokio::runtime::current_thread::run(backward(
             async {
-                let mut q = Quorum::new(vec!["127.0.0.1:1234"]);
+                let mut q = Quorum::new(
+                    ServerId("127.0.0.1:1233".parse().unwrap()),
+                    vec!["127.0.0.1:1234"],
+                );
                 q.request_vote(ServerId("127.0.0.1:1234".parse().unwrap()), TermId(0));
                 Ok(())
             },
