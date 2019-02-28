@@ -47,7 +47,7 @@ impl Quorum {
             .map(|peer| peer.request_vote());
 
         let stream = util::stream::futures_unordered(fut);
-        let stream = stream
+        let _stream = stream
             .try_filter_map(|res| {
                 async {
                     match res {
@@ -81,7 +81,7 @@ impl Quorum {
                     Ok(log::debug!("got resp"))
                 }
                 Ok(_) => Ok(()),
-                Err(e) => {
+                Err(_e) => {
                     self.receiver.take();
                     Err("RecvError in Quorum::poll_response".into())
                 }

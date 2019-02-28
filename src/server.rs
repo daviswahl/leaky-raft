@@ -96,7 +96,7 @@ impl StdStream for ServerReceiver {
 
     fn poll_next(
         mut self: Pin<&mut Self>,
-        waker: &std::task::Waker,
+        _waker: &std::task::Waker,
     ) -> std::task::Poll<Option<Self::Item>> {
         match self.0.poll() {
             Ok(Async::Ready(t)) => Poll::Ready(t),

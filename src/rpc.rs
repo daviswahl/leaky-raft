@@ -148,7 +148,7 @@ impl StdFuture for RequestVoteFut {
         log::debug!("polling receive vote fut");
         self.inner.poll_unpin(lw).map(|p| match p {
             Ok(rep) => Ok(rep),
-            Err(e) => Err("RequestVoteFut::poll RecvError".into()),
+            Err(_e) => Err("RequestVoteFut::poll RecvError".into()),
         })
     }
 }
