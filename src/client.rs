@@ -1,19 +1,27 @@
-use crate::{futures::all::*, rpc, Error, Result};
+use crate::{
+    futures::all::*,
+    rpc::{self, RequestVoteRep, RequestVoteReq},
+    Result,
+};
+
 use tarpc_bincode_transport as bincode_transport;
 
+use tokio::sync::mpsc;
+
+#[derive(Clone)]
 pub struct Client {
     addr: String,
     connection: Option<rpc::gen::Client>,
 }
 
-pub fn new(addr: String) -> Client {
-    Client {
-        addr,
-        connection: None,
-    }
-}
-
 impl Client {
+    pub fn new(addr: String) -> Client {
+        Client {
+            addr,
+            connection: None,
+        }
+    }
+
     /// If we have an established connection, clone and return it. Otherwise,
     /// establish the connection, clone and return it,
     ///
@@ -35,12 +43,15 @@ impl Client {
         }
     }
 
-    pub async fn request_vote(&mut self) -> Result<rpc::RequestVoteRep> {
-        let mut conn = await!(self.connect())?;
-        await! {
-            conn
-                .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
-                .err_into()
+    fn connection(&self) -> Result<rpc::gen::Client> {
+        if let Some(ref conn) = self.connection {
+            return Ok(conn.clone());
         }
+        Err("no connection".into())
+    }
+    pub fn request_vote(&self, _tx: mpsc::Sender<RequestVoteRep>) -> Result<()> {
+        log::debug!("in async fn request vote");
+
+        Ok(())
     }
 }

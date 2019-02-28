@@ -1,3 +1,4 @@
+
 [package]
 name = "leaky-raft"
 version = "0.1.0"
@@ -7,8 +8,9 @@ edition = "2018"
 [dependencies]
 tarpc = { git = "https://github.com/google/tarpc.git", branch = "master", features = ['serde1']}
 tarpc-bincode-transport = { git = "https://github.com/google/tarpc.git", branch = "master" }
-futures-preview = { version = "0.3.0-alpha.12", features = ["compat", "tokio-compat"] }
-futures-util-preview = { version = "0.3.0-alpha.12", features = ["compat", "tokio-compat"] }
+futures-preview = { version = "0.3.0-alpha.13",  features = ["io-compat"] }
+futures-util-preview = { version = "0.3.0-alpha.13", features = ["io-compat"] }
+futures-core-preview = { version = "0.3.0-alpha.13"}
 tokio = { version = "0.1", features = ["async-await-preview"] }
 tokio-executor = "0.1"
 serde = { version = "1.0" }
@@ -23,6 +25,8 @@ tempfile = "3.0"
 bincode = "1.1"
 tokio-serde-bincode = "0.2"
 sled = "0.18.1"
+tokio-async-await = "0.1.4"
+
 
 [dependencies.futures_01]
 version = "0.1.25"

@@ -1,17 +1,15 @@
-use crate::futures::{
-    all::*,
-    new::util::future::{ready, Ready},
+use crate::{
+    futures::{
+        all::*,
+        util::future::{ready, Ready},
+    },
+    server::PersistedState,
+    Result,
 };
-use crate::server::PersistedState;
-use crate::{Result, ServerId, TermId};
-use bincode::deserialize;
-use bincode::serialize;
-use serde::Deserialize;
-use serde::Serialize;
-use sled::PinnedValue;
-use std::path::PathBuf;
-use std::{path, path::Path};
-use tokio::fs;
+use bincode::{deserialize, serialize};
+use serde::{Deserialize, Serialize};
+
+use std::path::Path;
 
 /// Interface for async storage adapter
 pub trait Storage {
@@ -45,7 +43,9 @@ impl Storage for SledStorage {
 
     fn update_state(&self, state: PersistedState) -> Self::UpdateStateFut {
         if let Ok(state) = serialize(&state) {
-            ready(self.db.set(b"state", state).map(|_| ()).map_err(From::from))
+            let result = self.db.set(b"state", state).map(|_| ()).map_err(From::from);
+            self.db.flush().unwrap();
+            ready(result)
         } else {
             ready(Err("failed to serialize state".into()))
         }
@@ -59,7 +59,7 @@ impl Storage for SledStorage {
         }
     }
 
-    fn append_to_log(&self, entries: &[Self::Entry]) -> Self::AppendLogFut {
+    fn append_to_log(&self, _entries: &[Self::Entry]) -> Self::AppendLogFut {
         unimplemented!()
     }
 }

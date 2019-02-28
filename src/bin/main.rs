@@ -13,14 +13,13 @@ extern crate leaky_raft;
 use leaky_raft::util::spawn_compat;
 
 use env_logger;
-use leaky_raft::futures::*;
+
 use log::{error, info};
-use tarpc::server::Handler;
-use tarpc_bincode_transport as bincode_transport;
 
 use leaky_raft::storage::SledStorage;
-use leaky_raft::ServerId;
+
 use leaky_raft::{futures::all::*, server, Result};
+
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -42,11 +41,11 @@ async fn spawn_server(port: u32, clients: Vec<u32>) -> Result<()> {
         await!(server::new(addr, clients, storage))?
             .start()
             .map(|complete| match complete {
-                Ok(state) => info!("stream exhausted: {}", state.cycles),
+                Ok(()) => info!("stream exhausted"),
                 Err(e) => error!("{}", e),
             });
 
-    spawn_compat(server);
+    spawn_compat(server.shared());
     Ok(())
 }
 
@@ -65,11 +64,12 @@ async fn run() -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    use futures_util::compat::Executor01CompatExt;
     use std::fs;
     fs::remove_dir_all::<PathBuf>(TMP.into()).unwrap_or(());
     fs::create_dir::<PathBuf>(TMP.into())?;
     env_logger::init();
-    tarpc::init(TokioDefaultSpawner);
+    tarpc::init(tokio::executor::DefaultExecutor::current().compat());
     tokio::run(run().map_err(|e| error!("Oh no: {}", e)).boxed().compat());
     Ok(())
 }

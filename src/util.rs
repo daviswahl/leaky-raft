@@ -1,5 +1,6 @@
 use crate::futures::new::*;
 use failure::Fail;
+
 use std::io;
 
 #[derive(Fail, Debug)]
@@ -23,6 +24,13 @@ pub enum RaftError {
 }
 
 macro_rules! from_error {
+    ($i:path, $o:path, $e:expr) => {
+        impl From<$i> for RaftError {
+            fn from(_: $i) -> Self {
+                $e
+            }
+        }
+    };
     ($i:path, $o:path) => {
         impl From<$i> for RaftError {
             fn from(e: $i) -> Self {
