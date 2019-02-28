@@ -260,7 +260,7 @@ impl<S: Storage + Unpin> RaftServer<S> {
         let result = await!(
             tokio::timer::Interval::new_interval(self.config.runloop_interval)
                 .compat()
-                .map_err(|_| RaftError::ServerError("timer error"))
+                .map_err(|_| crate::error::RaftErrorKind::ServerError("timer error").into())
                 .try_fold(self, Self::tick)
         );
 

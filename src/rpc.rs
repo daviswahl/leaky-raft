@@ -2,7 +2,7 @@ use crate::futures::all::*;
 use crate::futures::util::compat::Compat01As03;
 use crate::futures::util::future::{ready, Ready};
 
-use crate::util::RaftError;
+use crate::Error;
 use crate::{Result, TermId};
 use serde::{Deserialize, Serialize};
 use std::io;
@@ -65,8 +65,8 @@ impl RequestCarrier {
 pub struct RpcError {}
 pub type RpcResult<T> = std::result::Result<T, RpcError>;
 
-impl From<RaftError> for RpcError {
-    fn from(_: RaftError) -> Self {
+impl From<Error> for RpcError {
+    fn from(_: Error) -> Self {
         RpcError {}
     }
 }

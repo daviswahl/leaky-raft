@@ -3,51 +3,6 @@ use failure::Fail;
 
 use std::io;
 
-#[derive(Fail, Debug)]
-pub enum RaftError {
-    #[fail(display = "Server error: {}", _0)]
-    ServerError(&'static str),
-    #[fail(display = "{}", _0)]
-    Io(#[cause] io::Error),
-
-    #[fail(display = "{}", _0)]
-    AddrParse(#[cause] std::net::AddrParseError),
-
-    #[fail(display = "{}", _0)]
-    Lazy(&'static str),
-
-    #[fail(display = "{}", _0)]
-    SledError(#[cause] sled::Error<()>),
-
-    #[fail(display = "{}", _0)]
-    BincodeError(#[cause] bincode::Error),
-}
-
-macro_rules! from_error {
-    ($i:path, $o:path, $e:expr) => {
-        impl From<$i> for RaftError {
-            fn from(_: $i) -> Self {
-                $e
-            }
-        }
-    };
-    ($i:path, $o:path) => {
-        impl From<$i> for RaftError {
-            fn from(e: $i) -> Self {
-                $o(e)
-            }
-        }
-    };
-}
-
-from_error!(std::net::AddrParseError, RaftError::AddrParse);
-from_error!(io::Error, RaftError::Io);
-from_error!(sled::Error<()>, RaftError::SledError);
-from_error!(bincode::Error, RaftError::BincodeError);
-
-type StaticStr = &'static str;
-from_error!(StaticStr, RaftError::Lazy);
-
 /// Convenience function for spawning a Future03 on the tokio executor.
 pub fn spawn_compat<F: StdFuture<Output = ()> + Send + 'static>(fut: F) {
     let fut = fut.boxed().unit_error().compat();

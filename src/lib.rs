@@ -13,6 +13,7 @@ use std::fmt::{Display, Error as FmtError, Formatter};
 
 // Just being lazy about exports for now.
 pub mod client;
+pub mod error;
 pub mod quorum;
 pub mod rpc;
 pub mod server;
@@ -75,7 +76,7 @@ pub(crate) fn _debug_f<F: futures::new::StdFuture<Output = ()>>(_: F) {}
 pub(crate) fn _debug_s<S: futures::new::StdStream<Item = ()>>(_: S) {}
 
 /// Error type used throughout crate.
-pub type Error = util::RaftError;
+pub type Error = error::RaftError;
 
 /// Result type used throughout project.
 pub type Result<T> = std::result::Result<T, Error>;
