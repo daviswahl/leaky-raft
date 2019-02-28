@@ -31,7 +31,7 @@ pub struct Config {
     pub runloop_interval: Duration,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 enum Mode {
     Leader,
     Follower,
@@ -111,7 +111,7 @@ impl StdStream for ServerReceiver {
 
 impl Drop for ServerReceiver {
     fn drop(&mut self) {
-        panic!("dropping server receiver");
+        log::error!("dropping server receiver");
         self.0.close();
     }
 }
@@ -145,7 +145,7 @@ pub async fn new<S: Storage>(
     storage: S,
 ) -> Result<RaftServer<S>> {
     let id = ServerId(addr);
-    let quorum = Quorum::new(client_addrs);
+    let quorum = Quorum::new(id, client_addrs);
 
     let persisted_state = match await!(storage.read_state())? {
         Some(state) => state,
@@ -158,8 +158,8 @@ pub async fn new<S: Storage>(
     Ok(RaftServer {
         id,
         config: Config {
-            election_interval: (300, 500),
-            runloop_interval: Duration::from_millis(10),
+            election_interval: (499, 500),
+            runloop_interval: Duration::from_millis(100),
         },
         timeout: None,
         receiver: None,
@@ -188,22 +188,31 @@ impl<S: Storage + Unpin> RaftServer<S> {
         let mut rng = rand::thread_rng();
         let interval = self.config.election_interval;
         let instant = now + Duration::from_millis(rng.gen_range(interval.0, interval.1));
+        log::trace!(
+            "{} updating timeout from: {:?} to: {:?}",
+            self.logline(),
+            now,
+            instant
+        );
         self.timeout.replace(instant);
     }
 
     /// Process messages in channel. RPC requests get queued into this channel from the
     /// RPC services, who clone the sender end of the channel.
     async fn process_messages(&mut self) -> Result<()> {
-        log::debug!("processing messages");
+        log::trace!("processing messages");
 
-        let mut rx = self.receiver.take().ok_or_else(|| "receiver went away")?;
+        let mut rx = self
+            .receiver
+            .take()
+            .unwrap_or_else(|| panic!("receiver went away"));
 
         let result = await!(self.process_messages_helper(&mut rx));
         self.receiver.replace(rx);
 
         let count = result?;
         if count > 0 {
-            log::info!("{} processed: {} messages", self.logline(), count);
+            log::trace!("{} processed: {} messages", self.logline(), count);
             self.update_timeout(Instant::now());
         }
         Ok(())
@@ -222,16 +231,31 @@ impl<S: Storage + Unpin> RaftServer<S> {
     /// Main entrypoint for the runloop.
     /// Returning Err<_> will stop the server.
     async fn tick(&mut self, t: Instant) -> Result<&mut Self> {
-        log::debug!("tick: {}", self.logline());
+        self.cycles += 1;
+        let start = Instant::now();
+        let skew = start - t;
+        log::debug!(
+            "{} tick skew: {}, cycle: {}",
+            self.logline(),
+            skew.as_millis(),
+            self.cycles
+        );
 
         tick_err!(self, self.quorum.poll_response());
         tick_err!(self, await!(self.process_messages()));
 
         if self.timed_out(t) {
-            log::debug!("timed out");
+            log::trace!("{} timed out", self.logline());
             tick_err!(self, await!(self.become_candidate()));
         }
 
+        let delta = Instant::now() - start;
+        log::trace!(
+            "{} tick delta: {}, cycle: {}",
+            self.logline(),
+            delta.as_millis(),
+            self.cycles
+        );
         Ok(self)
     }
 
@@ -277,6 +301,7 @@ impl<S: Storage + Unpin> RaftServer<S> {
     }
 
     async fn become_candidate(&mut self) -> Result<()> {
+        log::info!("{} becoming candidate", self.logline());
         self.mode = Mode::Candidate;
         let current_term = TermId(self.persisted_state.current_term.0 + 1);
         let voted_for = Some(self.id);
@@ -284,12 +309,13 @@ impl<S: Storage + Unpin> RaftServer<S> {
             current_term,
             voted_for
         }))?;
-        log::info!("{} become candidate", self.logline());
+        log::trace!("{} updated state", self.logline());
 
         self.update_timeout(Instant::now());
         self.quorum
             .request_vote(self.id, self.persisted_state.current_term)?;
 
+        log::trace!("{} requested vote", self.logline());
         Ok(())
     }
 

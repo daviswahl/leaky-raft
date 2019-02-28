@@ -17,19 +17,26 @@ use tokio::prelude::Async;
 use tokio::sync::oneshot;
 
 pub struct Quorum {
+    parent: ServerId,
     peers: Vec<Peer>,
     receiver: Option<oneshot::Receiver<Vec<bool>>>,
 }
 
 impl Quorum {
-    pub fn new<R: AsRef<str>>(peers: Vec<R>) -> Self {
+    pub fn new<R: AsRef<str>>(parent: ServerId, peers: Vec<R>) -> Self {
         Quorum {
+            parent,
             peers: peers.iter().map(Peer::new).map(|e| e.unwrap()).collect(),
             receiver: None,
         }
     }
 
     pub fn request_vote(&mut self, _server: ServerId, _term: TermId) -> Result<()> {
+        if let Some(mut rx) = self.receiver.take() {
+            log::info!("{}, quorum: closing existing rx", self.parent);
+            rx.close();
+        }
+
         let (tx, rx) = oneshot::channel();
         self.receiver.replace(rx);
 
@@ -55,7 +62,6 @@ impl Quorum {
                     }
                 }
             })
-            .take(1)
             .try_collect()
             .map(|vec: rpc::RpcResult<Vec<_>>| {
                 if let Ok(v) = vec {
@@ -63,7 +69,7 @@ impl Quorum {
                 }
             });
 
-        spawn_compat(stream);
+        //spawn_compat(stream);
         Ok(())
     }
 
@@ -75,7 +81,10 @@ impl Quorum {
                     Ok(log::debug!("got resp"))
                 }
                 Ok(_) => Ok(()),
-                _ => Err("err".into()),
+                Err(e) => {
+                    self.receiver.take();
+                    Err("RecvError in Quorum::poll_response".into())
+                }
             }
         } else {
             Ok(())

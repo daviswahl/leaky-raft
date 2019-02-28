@@ -4,6 +4,8 @@ use crate::futures::util::future::{ready, Ready};
 
 use crate::Error;
 use crate::{Result, TermId};
+use failure::Fail;
+use failure::ResultExt;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::pin::Pin;
@@ -146,7 +148,7 @@ impl StdFuture for RequestVoteFut {
         log::debug!("polling receive vote fut");
         self.inner.poll_unpin(lw).map(|p| match p {
             Ok(rep) => Ok(rep),
-            Err(e) => Err("RecvError".into()),
+            Err(e) => Err("RequestVoteFut::poll RecvError".into()),
         })
     }
 }
@@ -174,10 +176,9 @@ impl gen::Service for Server {
             request: Request::RequestVote(request),
         };
 
-        use log::error;
         match self.sender.start_send(carrier) {
             Err(e) => {
-                error!("request vote: {}", e);
+                log::error!("request vote: {}", e);
             }
             _ => (),
         }
