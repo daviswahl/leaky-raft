@@ -10,6 +10,7 @@
 #[macro_use]
 extern crate leaky_raft;
 
+use clap::{App, Arg, SubCommand};
 use leaky_raft::util::spawn_compat;
 
 use env_logger;
@@ -61,8 +62,8 @@ async fn spawn_3() -> Result<()> {
     )?;
     Ok(())
 }
-async fn run() -> Result<()> {
-    collect_await!(spawn_server(12000, vec![]),)?;
+async fn run(port: u32, peers: Vec<u32>) -> Result<()> {
+    await!(spawn_server(port, peers))?;
 
     Ok(())
 }
@@ -71,12 +72,44 @@ fn main() -> Result<()> {
     use failure::Fail;
     use futures_util::compat::Executor01CompatExt;
     use std::fs;
-    fs::remove_dir_all::<PathBuf>(TMP.into()).unwrap_or(());
-    fs::create_dir::<PathBuf>(TMP.into())?;
+
+    let matches = App::new("leaky-raft test")
+        .version("1.0")
+        .author("Davis W. <daviswahl@gmail.com>")
+        .about("Does awesome things")
+        .arg(
+            Arg::with_name("PORT")
+                .help("port to use")
+                .short("p")
+                .takes_value(true),
+        )
+        .arg(Arg::with_name("TMP").help("remake tmp dir").short("r"))
+        .arg(
+            Arg::with_name("PEERS")
+                .help("comma separated peer ports")
+                .short("P")
+                .value_delimiter(","),
+        )
+        .get_matches();
+
+    let port: u32 = matches.value_of("PORT").unwrap().parse().unwrap();
+
+    let peers: Vec<u32> = matches
+        .values_of("PEERS")
+        .unwrap()
+        .map(|p| p.parse().unwrap())
+        .collect();
+
+    let remake = matches.value_of("TMP").is_some();
+    if remake {
+        fs::remove_dir_all::<PathBuf>(TMP.into()).unwrap_or(());
+        fs::create_dir::<PathBuf>(TMP.into())?;
+    }
+
     env_logger::init();
     tarpc::init(tokio::executor::DefaultExecutor::current().compat());
     tokio::run(
-        run()
+        run(port, peers)
             .map_err(|e| error!("Oh no: {:?}", e.backtrace()))
             .boxed()
             .compat(),
