@@ -53,23 +53,33 @@ fn mk_addr_string(port: u32) -> String {
     format!("{}:{}", ADDR, port)
 }
 
-async fn run() -> Result<()> {
+async fn spawn_3() -> Result<()> {
     collect_await!(
         spawn_server(12000, vec![12001, 12002]),
         spawn_server(12001, vec![12000, 12002]),
         spawn_server(12002, vec![12000, 12001]),
     )?;
+    Ok(())
+}
+async fn run() -> Result<()> {
+    collect_await!(spawn_server(12000, vec![]),)?;
 
     Ok(())
 }
 
 fn main() -> Result<()> {
+    use failure::Fail;
     use futures_util::compat::Executor01CompatExt;
     use std::fs;
     fs::remove_dir_all::<PathBuf>(TMP.into()).unwrap_or(());
     fs::create_dir::<PathBuf>(TMP.into())?;
     env_logger::init();
     tarpc::init(tokio::executor::DefaultExecutor::current().compat());
-    tokio::run(run().map_err(|e| error!("Oh no: {}", e)).boxed().compat());
+    tokio::run(
+        run()
+            .map_err(|e| error!("Oh no: {:?}", e.backtrace()))
+            .boxed()
+            .compat(),
+    );
     Ok(())
 }

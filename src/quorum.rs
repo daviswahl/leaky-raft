@@ -13,15 +13,27 @@ use std::task::Poll;
 use std::task::Waker;
 use tarpc_bincode_transport as bincode_transport;
 
+use crate::rpc::RequestVoteRep;
+use core::mem;
+use futures_util::future::RemoteHandle;
+use std::future::poll_with_tls_waker;
 use tokio::prelude::Async;
 use tokio::sync::oneshot;
 
 pub struct Quorum {
     parent: ServerId,
     peers: Vec<Peer>,
-    receiver: Option<oneshot::Receiver<Vec<bool>>>,
+    receiver: Option<RemoteHandle<Result<()>>>,
 }
 
+fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<&mut T>> {
+    // Safety: `std` _could_ make this unsound if it were to decide Pin's
+    // invariants aren't required to transmit through slices. Otherwise this has
+    // the same safety as a normal field pin projection.
+    unsafe { slice.get_unchecked_mut() }
+        .iter_mut()
+        .map(|t| unsafe { Pin::new_unchecked(t) })
+}
 impl Quorum {
     pub fn new<R: AsRef<str>>(parent: ServerId, peers: Vec<R>) -> Self {
         Quorum {
@@ -33,41 +45,41 @@ impl Quorum {
 
     pub fn request_vote(&mut self, _server: ServerId, _term: TermId) -> Result<()> {
         if let Some(mut rx) = self.receiver.take() {
-            log::info!("{}, quorum: closing existing rx", self.parent);
-            rx.close();
+            log::debug!("{}, quorum: rx exists", self.parent);
         }
-
-        let (tx, rx) = oneshot::channel();
-        self.receiver.replace(rx);
 
         let fut = self
             .peers
             .clone()
             .into_iter()
-            .map(|peer| peer.request_vote());
+            .map(|peer| peer.request_vote().map(|e| e.map_err(|e| e.into())));
 
-        let stream = util::stream::futures_unordered(fut);
-        let _stream = stream
-            .try_filter_map(|res| {
-                async {
-                    match res {
-                        rpc::Response::RequestVote(rep) => {
-                            if rep.vote_granted {
-                                Ok(Some(true))
-                            } else {
-                                Ok(None)
-                            }
-                        }
-                        _ => Ok(None),
-                    }
-                }
-            })
-            .try_collect()
-            .map(|vec: rpc::RpcResult<Vec<_>>| {
-                if let Ok(v) = vec {
-                    tx.send(v).unwrap_or_else(|e| log::error!("error: {:?}", e))
-                }
-            });
+        //        let stream = util::stream::futures_unordered(fut);
+        //        let _stream = stream
+        //            .try_filter_map(|res| {
+        //                async {
+        //                    match res {
+
+        //                        rpc::Response::RequestVote(rep) => {
+        //                            if rep.vote_granted {
+        //                                Ok(Some(true))
+        //                            } else {
+        //                                Ok(None)
+        //                            }
+        //                        }
+        //                        _ => Ok(None),
+        //                    }
+        //                }
+        //            })
+        //            .try_collect()
+        //            .map(|vec: rpc::RpcResult<Vec<_>>| {
+        //                if let Ok(v) = vec {
+        //                    tx.send(v).unwrap_or_else(|e| log::error!("error: {:?}", e))
+        //                }
+        //            });
+        let (remote, handle) = VoteResult::new(fut).remote_handle();
+        spawn_compat(remote);
+        self.receiver.replace(handle);
 
         //spawn_compat(stream);
         Ok(())
@@ -75,19 +87,97 @@ impl Quorum {
 
     pub fn poll_response(&mut self) -> Result<()> {
         if let Some(ref mut recv) = self.receiver {
-            match recv.poll() {
-                Ok(Async::Ready(_msg)) => {
+            let recv = poll_with_tls_waker(Pin::new(recv));
+            match recv {
+                Poll::Ready(Ok(_)) => {
                     self.receiver.take();
                     Ok(log::debug!("got resp"))
                 }
-                Ok(_) => Ok(()),
-                Err(_e) => {
+                Poll::Ready(Err(_e)) => {
                     self.receiver.take();
                     Err("RecvError in Quorum::poll_response".into())
                 }
+                _ => Ok(()),
             }
         } else {
             Ok(())
+        }
+    }
+}
+
+struct VoteResult<F: StdFuture> {
+    elems: Pin<Box<[ElemState<F>]>>,
+}
+
+enum ElemState<F: StdFuture> {
+    Pending(F),
+    Complete(Option<F::Output>),
+}
+
+impl<F> ElemState<F>
+where
+    F: StdFuture<Output = Result<rpc::Response>>,
+{
+    fn pending_pin_mut<'a>(self: Pin<&'a mut Self>) -> Option<Pin<&'a mut F>> {
+        // Safety: Basic enum pin projection, no drop + optionally Unpin based
+        // on the type of this variant
+        match unsafe { self.get_unchecked_mut() } {
+            ElemState::Pending(f) => Some(unsafe { Pin::new_unchecked(f) }),
+            ElemState::Complete(_) => None,
+        }
+    }
+
+    fn take_done(self: Pin<&mut Self>) -> Option<F::Output> {
+        // Safety: Going from pin to a variant we never pin-project
+        match unsafe { self.get_unchecked_mut() } {
+            ElemState::Pending(_) => None,
+            ElemState::Complete(output) => output.take(),
+        }
+    }
+}
+
+impl<F> StdFuture for VoteResult<F>
+where
+    F: StdFuture<Output = Result<rpc::Response>>,
+{
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
+        let mut all_done = true;
+
+        for mut elem in iter_pin_mut(self.elems.as_mut()) {
+            if let Some(pending) = elem.as_mut().pending_pin_mut() {
+                if let Poll::Ready(output) = pending.poll(waker) {
+                    elem.set(ElemState::Complete(Some(output)));
+                } else {
+                    all_done = false;
+                }
+            }
+        }
+
+        if all_done {
+            let mut elems = mem::replace(&mut self.elems, Box::pin([]));
+            let result: Vec<_> = iter_pin_mut(elems.as_mut())
+                .map(|e| e.take_done().unwrap())
+                .collect();
+            Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl<F> VoteResult<F>
+where
+    F: StdFuture,
+{
+    fn new<I: IntoIterator<Item = F>>(futs: I) -> Self
+    where
+        F: StdFuture<Output = Result<rpc::Response>> + Send + 'static,
+    {
+        let elems: Box<[_]> = futs.into_iter().map(ElemState::Pending).collect();
+        VoteResult {
+            elems: Box::into_pin(elems),
         }
     }
 }
@@ -126,11 +216,12 @@ impl Peer {
         }
     }
 
-    pub async fn request_vote(mut self) -> RpcResult<rpc::Response> {
-        let mut conn = await!(self.connect())?;
+    pub async fn request_vote(mut self) -> rpc::RpcResult<rpc::Response> {
+        let mut conn = await!(self.connect()).unwrap();
         await!(conn
             .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
-            .err_into::<RpcError>())?
+            .err_into::<RpcError>()
+            .map(|e| e.unwrap()))
     }
 }
 

@@ -4,6 +4,7 @@ use crate::futures::util::future::{ready, Ready};
 
 use crate::Error;
 use crate::{Result, TermId};
+use core::fmt;
 use failure::Fail;
 use failure::ResultExt;
 use serde::{Deserialize, Serialize};
@@ -63,8 +64,14 @@ impl RequestCarrier {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Fail)]
 pub struct RpcError {}
+
+impl fmt::Display for RpcError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+        write!(f, "RpcError")
+    }
+}
 pub type RpcResult<T> = std::result::Result<T, RpcError>;
 
 impl From<Error> for RpcError {

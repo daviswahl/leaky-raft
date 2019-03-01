@@ -5,7 +5,8 @@
     async_await,
     proc_macro_hygiene,
     existential_type,
-    gen_future
+    gen_future,
+    box_into_pin
 )]
 #![allow(unused_imports, dead_code)]
 use serde::{Deserialize, Serialize};

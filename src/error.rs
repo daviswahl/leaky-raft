@@ -1,3 +1,4 @@
+use crate::rpc;
 use failure::{Backtrace, Context, Fail};
 use std::{fmt, io};
 
@@ -40,6 +41,9 @@ pub enum RaftErrorKind {
 
     #[fail(display = "{}", _0)]
     BincodeError(#[cause] bincode::Error),
+
+    #[fail(display = "{}", _0)]
+    RpcError(#[cause] rpc::RpcError),
 }
 
 impl From<RaftErrorKind> for RaftError {
@@ -85,6 +89,7 @@ from_error!(std::net::AddrParseError, RaftErrorKind::AddrParse);
 from_error!(io::Error, RaftErrorKind::Io);
 from_error!(sled::Error<()>, RaftErrorKind::SledError);
 from_error!(bincode::Error, RaftErrorKind::BincodeError);
+from_error!(rpc::RpcError, RaftErrorKind::RpcError);
 
 type StaticStr = &'static str;
 from_error!(StaticStr, RaftErrorKind::Lazy);
