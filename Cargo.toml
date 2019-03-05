@@ -6,7 +6,7 @@ authors = ["Davis Wahl <daviswahl@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-tarpc = { git = "https://github.com/google/tarpc.git", branch = "master", features = ['serde1']}
+tarpc = { git = "https://github.com/daviswahl/tarpc.git", branch = "fused-canceled-requests", features = ['serde1']}
 tarpc-bincode-transport = { git = "https://github.com/google/tarpc.git", branch = "master" }
 futures-preview = { version = "0.3.0-alpha.13",  features = ["io-compat"] }
 futures-util-preview = { version = "0.3.0-alpha.13", features = ["io-compat"] }
@@ -27,6 +27,7 @@ tokio-serde-bincode = "0.2"
 sled = "0.18.1"
 tokio-async-await = "0.1.4"
 clap = "~2.32"
+ctrlc = { version = "3.0", features = ["termination"] }
 
 [dependencies.futures_01]
 version = "0.1.25"

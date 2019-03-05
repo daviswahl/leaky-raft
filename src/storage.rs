@@ -1,14 +1,12 @@
 use crate::{
-    futures::{
-        all::*,
-        util::future::{ready, Ready},
-    },
+    futures::{all::*, util::future},
     server::PersistedState,
     Result,
 };
-use bincode::{deserialize, serialize};
+use bincode;
 use serde::{Deserialize, Serialize};
 
+use crate::error::RaftResultExt;
 use std::path::Path;
 
 /// Interface for async storage adapter
@@ -36,26 +34,29 @@ impl SledStorage {
 }
 
 impl Storage for SledStorage {
-    type UpdateStateFut = Ready<Result<()>>;
-    type ReadStateFut = Ready<Result<Option<PersistedState>>>;
-    type AppendLogFut = Ready<Result<()>>;
+    type AppendLogFut = future::Ready<Result<()>>;
     type Entry = ();
 
+    type UpdateStateFut = future::Ready<Result<()>>;
     fn update_state(&self, state: PersistedState) -> Self::UpdateStateFut {
-        if let Ok(state) = serialize(&state) {
-            let result = self.db.set(b"state", state).map(|_| ()).map_err(From::from);
-            self.db.flush().unwrap();
-            ready(result)
+        if let Ok(state) = bincode::serialize(&state) {
+            let result = self
+                .db
+                .set(b"state", state)
+                .and_then(|_| self.db.flush())
+                .into_raft_result();
+            future::ready(result)
         } else {
-            ready(Err("failed to serialize state".into()))
+            future::ready(Err("failed to serialize state".into()))
         }
     }
 
+    type ReadStateFut = future::Ready<Result<Option<PersistedState>>>;
     fn read_state(&self) -> Self::ReadStateFut {
         if let Ok(Some(state)) = self.db.get(b"state") {
-            ready(deserialize(&*state).map_err(|e| e.into()))
+            future::ready(bincode::deserialize(&*state).map(Some).into_raft_result())
         } else {
-            ready(Ok(None))
+            future::ready(Ok(None))
         }
     }
 

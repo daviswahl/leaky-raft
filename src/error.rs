@@ -85,6 +85,30 @@ macro_rules! from_error {
     };
 }
 
+pub trait RaftResultExt<T, E>: Sized {
+    fn err_into<E2>(self) -> Result<T, E2>
+    where
+        E2: From<E>;
+    fn into_raft_result(self) -> Result<T, RaftError>
+    where
+        RaftError: From<E>,
+    {
+        self.err_into()
+    }
+}
+
+impl<T, E> RaftResultExt<T, E> for Result<T, E>
+where
+    RaftError: From<E>,
+{
+    fn err_into<E2>(self) -> Result<T, E2>
+    where
+        E2: From<E>,
+    {
+        self.map_err(|e| e.into())
+    }
+}
+
 from_error!(std::net::AddrParseError, RaftErrorKind::AddrParse);
 from_error!(io::Error, RaftErrorKind::Io);
 from_error!(sled::Error<()>, RaftErrorKind::SledError);

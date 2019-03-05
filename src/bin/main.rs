@@ -73,6 +73,7 @@ fn main() -> Result<()> {
     use futures_util::compat::Executor01CompatExt;
     use std::fs;
 
+    env_logger::init();
     let matches = App::new("leaky-raft test")
         .version("1.0")
         .author("Davis W. <daviswahl@gmail.com>")
@@ -100,19 +101,40 @@ fn main() -> Result<()> {
         .map(|p| p.parse().unwrap())
         .collect();
 
-    let remake = matches.value_of("TMP").is_some();
+    let remake = matches.is_present("TMP");
     if remake {
+        log::info!("removing tmp dir");
         fs::remove_dir_all::<PathBuf>(TMP.into()).unwrap_or(());
-        fs::create_dir::<PathBuf>(TMP.into())?;
     }
 
-    env_logger::init();
+    fs::create_dir::<PathBuf>(TMP.into()).unwrap_or(());
     tarpc::init(tokio::executor::DefaultExecutor::current().compat());
     tokio::run(
-        run(port, peers)
-            .map_err(|e| error!("Oh no: {:?}", e.backtrace()))
+       spawn_3()
+            .map_err(|e| error!("Oh no: {:?}", e))
             .boxed()
             .compat(),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::compat::Executor01CompatExt;
+    use leaky_raft::{futures::all::*, server, Result};
+    use std::fs;
+    use std::process::Command;
+    use std::process::Stdio;
+
+    #[test]
+    fn test_main_1() {
+        let mut cmd = Command::new("/code/leaky-raft/target/debug/main");
+        cmd.env("RUST_LOG", "info")
+            .args(&["-p=13005", "-P=13004,13003"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        assert_eq!(output.status.success(), true);
+    }
 }

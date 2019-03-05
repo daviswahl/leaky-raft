@@ -217,7 +217,7 @@ impl Peer {
     }
 
     pub async fn request_vote(mut self) -> rpc::RpcResult<rpc::Response> {
-        let mut conn = await!(self.connect()).unwrap();
+        let mut conn = await!(self.connect())?;
         await!(conn
             .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
             .err_into::<RpcError>()
