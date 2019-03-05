@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Error as FmtError, Formatter};
 
 // Just being lazy about exports for now.
-pub mod client;
 pub mod error;
+pub mod peer;
 pub mod quorum;
 pub mod rpc;
 pub mod server;

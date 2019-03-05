@@ -4,8 +4,8 @@ use crate::rpc::RequestCarrier;
 use crate::rpc::RequestVoteRep;
 use crate::rpc::Response;
 use crate::{
-    client, collect_await, futures::all::*, rpc, rpc::RequestVoteReq, storage::Storage, util::*,
-    Result, ServerId, TermId,
+    collect_await, futures::all::*, rpc, rpc::RequestVoteReq, storage::Storage, util::*, Result,
+    ServerId, TermId,
 };
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
