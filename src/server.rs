@@ -313,7 +313,7 @@ impl<S: Storage + Unpin> RaftServer<S> {
 
         self.update_timeout(Instant::now());
         self.quorum
-            .request_vote(self.id, self.persisted_state.current_term)?;
+            .request_vote(self.id, self.persisted_state.current_term, crate::LogIndex::new(1), TermId(0))?;
 
         log::trace!("{} requested vote", self.logline());
         Ok(())

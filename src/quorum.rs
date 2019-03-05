@@ -3,7 +3,7 @@ use crate::rpc::Response;
 use crate::rpc::RpcError;
 use crate::rpc::RpcResult;
 use crate::util::spawn_compat;
-use crate::{futures::all::*, rpc, Result, ServerId, TermId};
+use crate::{futures::all::*, rpc, Result, ServerId, TermId, LogIndex};
 
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -43,7 +43,7 @@ impl Quorum {
         }
     }
 
-    pub fn request_vote(&mut self, _server: ServerId, _term: TermId) -> Result<()> {
+    pub fn request_vote(&mut self, server: ServerId, term: TermId, last_log_index: crate::LogIndex, last_term_id: TermId) -> Result<()> {
         if let Some(mut rx) = self.receiver.take() {
             log::debug!("{}, quorum: rx exists", self.parent);
         }
@@ -52,7 +52,7 @@ impl Quorum {
             .peers
             .clone()
             .into_iter()
-            .map(|peer| peer.request_vote().map(|e| e.map_err(|e| e.into())));
+            .map(|peer| peer.request_vote(server, term, last_log_index, last_term_id).map(|e| e.map_err(|e| e.into())));
 
         //        let stream = util::stream::futures_unordered(fut);
         //        let _stream = stream
@@ -216,10 +216,10 @@ impl Peer {
         }
     }
 
-    pub async fn request_vote(mut self) -> rpc::RpcResult<rpc::Response> {
+    pub async fn request_vote(mut self, candidate: ServerId, term: TermId, last_log_index: LogIndex, last_log_term: TermId) -> rpc::RpcResult<rpc::Response> {
         let mut conn = await!(self.connect())?;
         await!(conn
-            .request_vote(tarpc::context::current(), rpc::RequestVoteReq {})
+            .request_vote(tarpc::context::current(), rpc::RequestVoteReq { candidate, term, last_log_index, last_log_term })
             .err_into::<RpcError>()
             .map(|e| e.unwrap()))
     }

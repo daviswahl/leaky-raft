@@ -3,7 +3,7 @@ use crate::futures::util::compat::Compat01As03;
 use crate::futures::util::future::{ready, Ready};
 
 use crate::Error;
-use crate::{Result, TermId};
+use crate::{Result, TermId, LogIndex};
 use core::fmt;
 use failure::Fail;
 use failure::ResultExt;
@@ -19,6 +19,7 @@ use tokio::prelude::AsyncSink;
 use tokio::prelude::Sink;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot::{Receiver, Sender};
+use crate::ServerId;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Response {
@@ -38,7 +39,13 @@ pub struct AppendEntriesReq {}
 pub struct AppendEntriesRep {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct RequestVoteReq {}
+pub struct RequestVoteReq {
+    pub term: TermId,
+    pub candidate: ServerId,
+    pub last_log_index: LogIndex,
+    pub last_log_term: TermId,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RequestVoteRep {
     pub term: TermId,

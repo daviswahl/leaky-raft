@@ -76,6 +76,7 @@ pub(crate) fn _debug_f<F: futures::new::StdFuture<Output = ()>>(_: F) {}
 // Like `_debugf` but for `Stream`s instead of `Future`s.
 pub(crate) fn _debug_s<S: futures::new::StdStream<Item = ()>>(_: S) {}
 
+pub use storage::LogIndex;
 /// Error type used throughout crate.
 pub type Error = error::RaftError;
 

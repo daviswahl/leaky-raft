@@ -9,6 +9,14 @@ use serde::{Deserialize, Serialize};
 use crate::error::RaftResultExt;
 use std::path::Path;
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub struct LogIndex(u64);
+impl LogIndex {
+    pub fn new(u: u64) -> LogIndex {
+       assert!(u > 0, "LogIndex must be > 0");
+        LogIndex(u)
+    }
+}
 /// Interface for async storage adapter
 pub trait Storage {
     type UpdateStateFut: StdFuture<Output = Result<()>>;
