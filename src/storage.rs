@@ -13,7 +13,7 @@ use std::path::Path;
 pub struct LogIndex(u64);
 impl LogIndex {
     pub fn new(u: u64) -> LogIndex {
-       assert!(u > 0, "LogIndex must be > 0");
+        assert!(u > 0, "LogIndex must be > 0");
         LogIndex(u)
     }
 }

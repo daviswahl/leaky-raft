@@ -3,7 +3,8 @@ use crate::futures::util::compat::Compat01As03;
 use crate::futures::util::future::{ready, Ready};
 
 use crate::Error;
-use crate::{Result, TermId, LogIndex};
+use crate::ServerId;
+use crate::{LogIndex, Result, TermId};
 use core::fmt;
 use failure::Fail;
 use failure::ResultExt;
@@ -19,7 +20,6 @@ use tokio::prelude::AsyncSink;
 use tokio::prelude::Sink;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot::{Receiver, Sender};
-use crate::ServerId;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Response {
