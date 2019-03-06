@@ -70,6 +70,16 @@ pub struct PersistedState {
     voted_for: Option<ServerId>,
 }
 
+impl PersistedState {
+    fn set_term(&self, term: TermId) -> PersistedState {
+        PersistedState { current_term: term, ..self.clone()}
+    }
+
+    fn set_voted_for(&self, voted_for: Option<ServerId>) -> PersistedState {
+        PersistedState { voted_for, ..self.clone()}
+    }
+}
+
 struct LeaderState {
     next_index: HashMap<ServerId, u64>,
     match_index: HashMap<ServerId, u64>,
@@ -336,6 +346,11 @@ impl<S: Storage + Unpin> RaftServer<S> {
         let mut errors: Vec<crate::Error> = vec![];
         let mut processed = 0;
         for msg in messages.into_iter() {
+            let term = *msg.term();
+            if term > self.persisted_state.current_term {
+                await!(self.update_state(self.persisted_state.set_term(term)))?;
+            }
+
             let response = match msg.body() {
                 Request::RequestVote(ref vote) =>  await!(self.handle_request_vote(vote)),
                 m => Err(format!("unhandled msg: {:?}", m).into())

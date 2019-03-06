@@ -63,6 +63,13 @@ impl RequestCarrier {
     pub fn body(&self) -> &Request {
         &self.request
     }
+
+    pub fn term(&self) -> &TermId {
+        match self.request {
+            Request::RequestVote(ref req) => &req.term,
+            _ => unimplemented!()
+        }
+    }
     pub async fn respond(self, resp: Response) -> Result<()> {
         if !self.response_sender.is_closed() {
             self.response_sender.send(resp).map_err(|_| "rpc".into())
