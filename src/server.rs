@@ -25,6 +25,7 @@ use tarpc::server::Handler;
 use tarpc_bincode_transport as bincode_transport;
 use tokio::prelude::Async;
 use tokio::sync::mpsc::*;
+use crate::LogIndex;
 
 pub struct Config {
     pub election_interval: (u64, u64),
@@ -331,21 +332,72 @@ impl<S: Storage + Unpin> RaftServer<S> {
         }
     }
 
-    async fn handle_messages(&self, messages: Vec<RequestCarrier>) -> Result<u64> {
+    async fn handle_messages(&mut self, messages: Vec<RequestCarrier>) -> Result<u64> {
+        let mut errors: Vec<crate::Error> = vec![];
         let mut processed = 0;
         for msg in messages.into_iter() {
-            processed += 1;
-            match msg.body() {
-                Request::RequestVote(ref _vote) => {
-                    await!(msg.respond(Response::RequestVote(RequestVoteRep {
-                        term: self.persisted_state.current_term,
-                        vote_granted: true,
-                    })))?
-                }
-                _ => (),
+            let response = match msg.body() {
+                Request::RequestVote(ref vote) =>  await!(self.handle_request_vote(vote)),
+                m => Err(format!("unhandled msg: {:?}", m).into())
+            };
+
+            match response {
+                Ok(resp) => await!(msg.respond(resp))?,
+                Err(e) => errors.push(e)
             }
+            processed += 1;
         }
+
+
         Ok(processed)
+
+    }
+
+    fn last_log_index(&self) -> LogIndex {
+        LogIndex::new(1)
+    }
+
+
+    fn last_log_term(&self) -> TermId {
+        TermId(0)
+    }
+
+
+    async fn grant_vote(&mut self, candidate: ServerId) -> Result<bool> {
+        match self.persisted_state.voted_for {
+            Some(voted_for) if voted_for == candidate => Ok(true),
+            None => {
+                let voted_for = Some(candidate);
+                let state = PersistedState { voted_for, ..self.persisted_state.clone()};
+
+                await!(self.update_state(state))?;
+                Ok(true)
+            }
+            _ => Ok(false)
+        }
+
+    }
+    async fn handle_request_vote<'a>(&'a mut self, req: &'a rpc::RequestVoteReq) -> Result<Response> {
+        log::info!("{} handling vote request {:?}", self.logline(), req);
+
+        let term_gte_current_term = req.term >= self.persisted_state.current_term;
+
+        let log_up_to_date = self.last_log_index() <= req.last_log_index && self.last_log_term() <= req.last_log_term;
+
+
+        if term_gte_current_term && log_up_to_date && await!(self.grant_vote(req.candidate))? {
+            log::info!("{} granting vote", self.logline());
+            Ok(Response::RequestVote(RequestVoteRep {
+                vote_granted: true,
+                term: self.persisted_state.current_term
+            }))
+        } else {
+            log::info!("{} denying vote", self.logline());
+            Ok(Response::RequestVote(RequestVoteRep {
+                vote_granted: false,
+                term: self.persisted_state.current_term
+            }))
+        }
     }
 }
 

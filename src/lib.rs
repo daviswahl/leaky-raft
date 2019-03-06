@@ -92,7 +92,7 @@ impl Display for ServerId {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct TermId(pub u64);
 
 impl Display for TermId {

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::RaftResultExt;
 use std::path::Path;
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialOrd, PartialEq)]
 pub struct LogIndex(u64);
 impl LogIndex {
     pub fn new(u: u64) -> LogIndex {

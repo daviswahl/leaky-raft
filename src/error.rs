@@ -37,6 +37,9 @@ pub enum RaftErrorKind {
     Lazy(&'static str),
 
     #[fail(display = "{}", _0)]
+    LazyDynamic(String),
+
+    #[fail(display = "{}", _0)]
     SledError(#[cause] sled::Error<()>),
 
     #[fail(display = "{}", _0)]
@@ -114,6 +117,7 @@ from_error!(io::Error, RaftErrorKind::Io);
 from_error!(sled::Error<()>, RaftErrorKind::SledError);
 from_error!(bincode::Error, RaftErrorKind::BincodeError);
 from_error!(rpc::RpcError, RaftErrorKind::RpcError);
+from_error!(String, RaftErrorKind::LazyDynamic);
 
 type StaticStr = &'static str;
 from_error!(StaticStr, RaftErrorKind::Lazy);

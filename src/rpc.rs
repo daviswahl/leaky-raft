@@ -25,6 +25,7 @@ use tokio::sync::oneshot::{Receiver, Sender};
 pub enum Response {
     AppendEntries(AppendEntriesRep),
     RequestVote(RequestVoteRep),
+    Error,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

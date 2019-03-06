@@ -60,29 +60,6 @@ impl Quorum {
                 .map(|e| e.map_err(|e| e.into()))
         });
 
-        //        let stream = util::stream::futures_unordered(fut);
-        //        let _stream = stream
-        //            .try_filter_map(|res| {
-        //                async {
-        //                    match res {
-
-        //                        rpc::Response::RequestVote(rep) => {
-        //                            if rep.vote_granted {
-        //                                Ok(Some(true))
-        //                            } else {
-        //                                Ok(None)
-        //                            }
-        //                        }
-        //                        _ => Ok(None),
-        //                    }
-        //                }
-        //            })
-        //            .try_collect()
-        //            .map(|vec: rpc::RpcResult<Vec<_>>| {
-        //                if let Ok(v) = vec {
-        //                    tx.send(v).unwrap_or_else(|e| log::error!("error: {:?}", e))
-        //                }
-        //            });
         let (remote, handle) = VoteResult::new(fut).remote_handle();
         spawn_compat(remote);
         self.receiver.replace(handle);
